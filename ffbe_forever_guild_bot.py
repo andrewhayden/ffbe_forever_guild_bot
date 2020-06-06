@@ -69,6 +69,9 @@ HELP = '''```FFBEForever Guild Bot Help
 Unit and esper names need not be full, but the first match will be returned.
 For example you don't have to type out "Sterne Leonis" and "Tetra Sylphid";
 you can just shorthand it as "stern/tetra", or even "st/te".
+
+View the Esper resonance spreadsheet here:
+https://docs.google.com/spreadsheets/d/{0}
 ```'''
 
 # Pattern for getting your own resonance value
@@ -337,7 +340,7 @@ def getDiscordSafeResponse(message):
         return '<@{0}>: no such member {1}'.format(from_id, target_member_name)
 
     if message.content.startswith('!help'):
-        return HELP
+        return HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
 
 if __name__ == "__main__":
     readConfig()
