@@ -49,9 +49,10 @@ You're ready to start now. Start the bot:
 That's it! The bot should be up and running now.
 
 ## The Access Control spreadsheet
+
 This spreadsheet gates write access to the esper resonance, ensuring that a user can only modify their own data. Use the bot's hidden commands !whois <username> and !whoami to get the snowflake IDs. Populate two columns:
-# Column A: Snowflake ID. Put the raw snowflake IDs in this column.
-# Column B: Alias. For each Snowflake ID, put the alias of the Discord user. This alias will be expected to be the name of the tab in all related spreadsheets such as Esper Resonance.
+* Column A: Snowflake ID. Put the raw snowflake IDs in this column.
+* Column B: Alias. For each Snowflake ID, put the alias of the Discord user. This alias will be expected to be the name of the tab in all related spreadsheets such as Esper Resonance.
 
 **How it Works:**
 At runtime, any attempt to perform a write operation is indirected through the access control spreadsheet. The originating discord user's snowflake ID is grabbed directly from the Discord server and used to look up the corresponding alias in the access control spreadsheet. That alias is then used to identify the name of the tab in the Esper Resonance (etc) spreadsheet, to which the discord user has permission to write. When a new member wants access, you need to grant it by adding their snowflake ID to the access control list and assign them an alias.
