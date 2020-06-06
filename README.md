@@ -20,7 +20,7 @@ After checkout, and whenever you want to run the bot:
 Now configure the bot to connect to discord:
 * Visit https://discordpy.readthedocs.io/en/latest/discord.html and follow instructions to create your bot on Discord
 * Create a file called bot_config.json in the checkout directory. Add the following JSON bindings:
-  * "discord_bot_token": "<your discord bot token>"
+  * "discord_bot_token": "&lt;your discord bot token&gt;"
 * Back in the Discord console, generate your invite link. Make sure to give the following permissions in the invite URL:
   * Send Messages
   * Embed Links
@@ -37,7 +37,7 @@ Now configure the bot to connect to Google
 * In your python virtual environemt:
   * pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 * Open the bot_config.json you created earlier and set the Google spreadsheet you want the bot to manage:
-  * "esper_resonance_spreadsheet_id": "<your google spreadsheet ID>"
+  * "esper_resonance_spreadsheet_id": "&lt;your google spreadsheet ID&gt;"
 
 You're ready to start now. Start the bot:
 * In your python virtual environemt:
