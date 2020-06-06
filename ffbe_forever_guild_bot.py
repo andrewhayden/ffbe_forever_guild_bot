@@ -26,25 +26,62 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 # The ID of the Esper Resonance spreadsheet that the bot maintains
 ESPER_RESONANCE_SPREADSHEET_ID = None
 
+# The ID of the spreadsheet that provides Discord User ID <-> Alias mappings for access control.
+ACCESS_CONTROL_SPREADSHEET_ID = None
+
+# The name of the tab that contains the user bindings that map Discord IDs to data tabs.
+USERS_TAB_NAME = 'Users'
+
 # The token of the Discord bot, needed to log into Discord.
 DISCORD_BOT_TOKEN = None
+
+# Templates for the various resonance quantities. These match validation rules in the spreadsheet.
+RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE = 'Low Priority: {0}/10'
+RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE = 'Medium Priority: {0}/10'
+RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE = 'High Priority: {0}/10'
+RESONANCE_MAX_VALUE = "10/10"
 
 # -----------------------------------------------------------------------------
 # Command Regexes & Help
 # -----------------------------------------------------------------------------
 HELP = '''```FFBEForever Guild Bot Help
-!resonance unit-name/esper-name                                get **your own** resonance for the named unit and esper.
-!resonance-lookup discord-username unit-name/esper-name        get **someone else's** resonance for the named unit and esper.
 
-Unit and esper names need not be full, but the first match will be returned. For example you don't have to type out
-"Sterne Leonis" and "Tetra Sylphid": you can just shorthand it as "stern/tetra", or even "st/te".
+!resonance unit-name/esper-name
+    Get **your own** resonance for the named unit and esper. Example:
+    !resonance mont/cactuar
+
+!resonance-set unit-name/esper-name level[/priority]
+    Set your resonance for the named unit and esper to the specified level.
+    Optionally, include a priority at the end (H/High/M/Medium/L/Low).
+    If a priority has already been set, it will be preserved. If no priority
+    has been set, the default is "Low". Example:
+    !resonance-set mont/cactuar 9/m
+
+!resonance-lookup discord-username unit-name/esper-name
+    Get **someone else's** resonance for the named unit and esper. Example:
+    !resonance-lookup JohnDoe mont/cactuar
+
+!whoami
+    Find out who you are, giving you back your unique "snowflake" ID. This
+    is used for access control to the spreadsheet. You can only edit your
+    own data, and this is the key that governs it.
+
+Unit and esper names need not be full, but the first match will be returned.
+For example you don't have to type out "Sterne Leonis" and "Tetra Sylphid";
+you can just shorthand it as "stern/tetra", or even "st/te".
 ```'''
 
-# !res get [unit]/[esper]
+# Pattern for getting your own resonance value
 RES_FETCH_SELF_PATTERN = re.compile("^!resonance (.+)/(.+)$")
 
-# !res get [user] [unit]/[esper]
+# Pattern for setting your own resonance value
+RES_SET_PATTERN = re.compile("^!resonance-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>\S*))?$")
+
+# Pattern for getting someone else's resonance value
 RES_FETCH_OTHER_PATTERN = re.compile("^!resonance-lookup (\S+) (.+)/(.+)$")
+
+# (Hidden) Pattern for getting your own resonance value
+WHOIS_PATTERN = re.compile("^!whois (.+)$")
 
 class DiscordSafeException(Exception):
     """An exception whose error text is safe to show in Discord.
@@ -58,10 +95,12 @@ class DiscordSafeException(Exception):
 
 # Reads the configuration file and bootstraps the application. Call this first.
 def readConfig():
+    global ACCESS_CONTROL_SPREADSHEET_ID
     global ESPER_RESONANCE_SPREADSHEET_ID
     global DISCORD_BOT_TOKEN
     with open(CONFIG_FILE_PATH) as config_file:
         data = json.load(config_file)
+        ACCESS_CONTROL_SPREADSHEET_ID = data['access_control_spreadsheet_id']
         ESPER_RESONANCE_SPREADSHEET_ID = data['esper_resonance_spreadsheet_id']
         print('spreadsheet id: %s' % (ESPER_RESONANCE_SPREADSHEET_ID))
         DISCORD_BOT_TOKEN = data['discord_bot_token']
@@ -81,7 +120,7 @@ def normalizeName(fancy_name):
     return fancy_name.strip().lower().replace(" ", "-")
 
 # Open the spreadsheet and return a tuple of the service object and the spreadsheet.
-def openResonanceSpreadsheet():
+def openSpreadsheets():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -102,18 +141,36 @@ def openResonanceSpreadsheet():
             pickle.dump(creds, token)
 
     service = build('sheets', 'v4', credentials=creds)
-    sheet = service.spreadsheets()
-    return (service, sheet)
+    sheets = service.spreadsheets()
+    return (service, sheets)
+
+# Return the name of the tab to which the specified Discord snowflake/user ID is bound.
+# If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
+def findAssociatedTab(sheets, discord_user_id):
+    # Discord IDs are in column A, the associated tab name is in column B
+    range_name = USERS_TAB_NAME + '!A:B'
+    rows = None
+    try:
+        values = sheets.values().get(spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
+        rows = values.get('values', [])
+        if not rows: raise Exception('')
+    except:
+        raise DiscordSafeException('Spreadsheet misconfigured'.format(discord_user_id))
+
+    for row in rows:
+        if (str(row[0]) == str(discord_user_id)):
+            return row[1]
+    raise DiscordSafeException('User with ID {0} is not allowed to access this data. Ask your guild administrator for assistance.'.format(discord_user_id))
 
 # Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findEsperColumn(sheet, user_name, esper_name):
+def findEsperColumn(sheets, user_name, esper_name):
     # Read the esper names row. Esper names are on row 2.
     range_name = user_name + '!2:2'
     esper_name_rows = None
     esper_name = normalizeName(esper_name)
     try:
-        values = sheet.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+        values = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
         esper_name_rows = values.get('values', [])
         if not esper_name_rows: raise Exception('')
     except:
@@ -133,13 +190,13 @@ def findEsperColumn(sheet, user_name, esper_name):
 
 # Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
 # If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findUnitRow(sheet, user_name, unit_name):
+def findUnitRow(sheets, user_name, unit_name):
     # Unit names are on column B.
     range_name = user_name + '!B:B'
     unit_name_rows = None
     unit_name = normalizeName(unit_name)
     try:
-        values = sheet.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+        values = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
         unit_name_rows = values.get('values', [])
         if not unit_name_rows: raise Exception('')
     except:
@@ -156,13 +213,13 @@ def findUnitRow(sheet, user_name, unit_name):
 
 # Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
 def readResonance(user_name, unit_name, esper_name):
-    service, sheet = openResonanceSpreadsheet()
-    esper_column_A1, pretty_esper_name = findEsperColumn(sheet, user_name, esper_name)
-    unit_row, pretty_unit_name = findUnitRow(sheet, user_name, unit_name)
+    service, sheets = openSpreadsheets()
+    esper_column_A1, pretty_esper_name = findEsperColumn(sheets, user_name, esper_name)
+    unit_row, pretty_unit_name = findUnitRow(sheets, user_name, unit_name)
 
     # We have the location. Get the value!
     range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
-    result = sheet.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+    result = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
     final_rows = result.get('values', [])
 
     if not final_rows:
@@ -171,6 +228,50 @@ def readResonance(user_name, unit_name, esper_name):
     for row in final_rows:
         for value in final_rows:
             return value[0], pretty_unit_name, pretty_esper_name
+
+# Set the esper resonance. Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
+def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_string, priority):
+    resonance_int = None
+    try:
+        resonance_int = int(resonance_numeric_string)
+    except:
+        raise DiscordSafeException('Invalid resonance level: "{0}"'.format(resonance_numeric_string))
+    if (resonance_int < 0) or (resonance_int > 10):
+        raise DiscordSafeException('Resonance must be a value in the range 0 - 10')
+
+    priority = priority.lower()
+    priorityString = None
+    if (resonance_int == 10):
+        priorityString = '10/10'
+    elif (priority == 'l') or (priority == 'low'):
+        priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    elif (priority == 'm') or (priority == 'medium'):
+        priorityString = RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    elif (priority == 'h') or (priority == 'high'):
+        priorityString = RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    else:
+        raise DiscordSafeException('Unknown priority value. Priority should be blank or one of "L", "low", "M", "medium", "H", "high"')
+
+    service, sheets = openSpreadsheets()
+    user_name = findAssociatedTab(sheets, discord_user_id)
+
+    esper_column_A1, pretty_esper_name = findEsperColumn(sheets, user_name, esper_name)
+    unit_row, pretty_unit_name = findUnitRow(sheets, user_name, unit_name)
+
+    # We have the location. Get the old value first.
+    range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
+    result = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+    final_rows = result.get('values', [])
+    old_value_string = '(not set)'
+    if final_rows:
+        for row in final_rows:
+            for value in final_rows:
+                old_value_string = value[0]
+
+    # Now write the new value
+    updateBody = {'values': [[priorityString]]}
+    sheets.values().update(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name, valueInputOption='RAW', body=updateBody).execute()
+    return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
 
 # Generate a safe response for a message from discord, or None if no response is needed.
 def getDiscordSafeResponse(message):
@@ -191,7 +292,7 @@ def getDiscordSafeResponse(message):
         esper_name = match.group(2).strip()
         print('resonance fetch from user %s, for user %s, for unit %s, or esper %s' % (target_user_name, target_user_name, unit_name, esper_name))
         resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, unit_name, esper_name)
-        return '<@{0}>: ${1}/${2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
+        return '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content);
     if match:
@@ -204,12 +305,46 @@ def getDiscordSafeResponse(message):
         resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, unit_name, esper_name)
         return '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
 
+    match = RES_SET_PATTERN.match(message.content);
+    if match:
+        from_name = message.author.display_name
+        from_id = message.author.id
+        unit_name = match.group('unit').strip()
+        esper_name = match.group('esper').strip()
+        resonance_numeric_string = match.group('resonance_level').strip()
+        priority = "Low"
+        if match.group('priority'): priority = match.group('priority').strip()
+        print('resonance set from user %s, for unit %s, for esper %s, to resonance %s, with priority %s' % (from_name, unit_name, esper_name, resonance_numeric_string, priority))
+        old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = setResonance(from_id, unit_name, esper_name, resonance_numeric_string, priority)
+        return '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
+
+    # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
+    # but it's also not common, so it isn't listed in help.
+    if message.content.startswith('!whoami'):
+        from_id = message.author.id
+        return '<@{0}>: Your snowflake ID is {0}'.format(from_id, from_id)
+
+    # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure,
+    # but it's also not common, so it isn't listed in help.
+    match = WHOIS_PATTERN.match(message.content);
+    if match:
+        from_id = message.author.id
+        target_member_name = match.group(1).strip()
+        members = message.guild.members
+        for member in members:
+            if (member.name == target_member_name):
+                return '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
+        return '<@{0}>: no such member {1}'.format(from_id, target_member_name)
+
     if message.content.startswith('!help'):
         return HELP
 
 if __name__ == "__main__":
     readConfig()
     discord_client = discord.Client()
+
+def getDiscordClient():
+    return discord_client
 
 @discord_client.event
 async def on_ready():
