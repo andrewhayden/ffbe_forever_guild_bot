@@ -44,35 +44,20 @@ RESONANCE_MAX_VALUE = "10/10"
 # -----------------------------------------------------------------------------
 # Command Regexes & Help
 # -----------------------------------------------------------------------------
-HELP = '''```FFBEForever Guild Bot Help
+HELP = '''`!resonance unit-name/esper-name`
+> Get **your own** resonance for the named unit and esper. Example: *!resonance mont/cactuar*
 
-!resonance unit-name/esper-name
-    Get **your own** resonance for the named unit and esper. Example:
-    !resonance mont/cactuar
+`!resonance-set unit-name/esper-name level[/priority]`
+> Set **your own** resonance for the named unit and esper to the specified level. Optionally, include a priority at the end (H/High/M/Medium/L/Low). If a priority has already been set, it will be preserved. If no priority has been set, the default is "Low". Example: *!resonance-set mont/cactuar 9/m*
 
-!resonance-set unit-name/esper-name level[/priority]
-    Set your resonance for the named unit and esper to the specified level.
-    Optionally, include a priority at the end (H/High/M/Medium/L/Low).
-    If a priority has already been set, it will be preserved. If no priority
-    has been set, the default is "Low". Example:
-    !resonance-set mont/cactuar 9/m
+`!resonance-lookup discord-nickname unit-name/esper-name`
+> Get **someone else's** resonance for the named unit and esper. Unlike !resonance and !resonance-set, the discord-nickname here is not resolved against the user's snowflake ID. Put another way, it's just the name of the tab in the spreadsheet. This can access data of a former guild members, if your guild leader hasn't deleted it. Example: *!resonance-lookup JohnDoe mont/cactuar*
 
-!resonance-lookup discord-username unit-name/esper-name
-    Get **someone else's** resonance for the named unit and esper. Example:
-    !resonance-lookup JohnDoe mont/cactuar
+**Shorthand Support**
+You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, a case-insensitive prefix match is used.
 
-!whoami
-    Find out who you are, giving you back your unique "snowflake" ID. This
-    is used for access control to the spreadsheet. You can only edit your
-    own data, and this is the key that governs it.
-
-Unit and esper names need not be full, but the first match will be returned.
-For example you don't have to type out "Sterne Leonis" and "Tetra Sylphid";
-you can just shorthand it as "stern/tetra", or even "st/te".
-
-View the Esper resonance spreadsheet here:
-https://docs.google.com/spreadsheets/d/{0}
-```'''
+View your guild's Esper resonance data here: <https://docs.google.com/spreadsheets/d/{0}>
+'''
 
 # Pattern for getting your own resonance value
 RES_FETCH_SELF_PATTERN = re.compile("^!resonance (.+)/(.+)$")
@@ -163,7 +148,7 @@ def findAssociatedTab(sheets, discord_user_id):
     for row in rows:
         if (str(row[0]) == str(discord_user_id)):
             return row[1]
-    raise DiscordSafeException('User with ID {0} is not allowed to access this data. Ask your guild administrator for assistance.'.format(discord_user_id))
+    raise DiscordSafeException('User with ID {0} is not configured, or is not allowed to access this data. Ask your guild administrator for assistance.'.format(discord_user_id))
 
 # Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
@@ -215,8 +200,18 @@ def findUnitRow(sheets, user_name, unit_name):
 
 
 # Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
-def readResonance(user_name, unit_name, esper_name):
+# Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
+# same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
+# right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
+# and not the data of, e.g., another user who has their old nickname.
+def readResonance(user_name, discord_user_id, unit_name, esper_name):
     service, sheets = openSpreadsheets()
+    if (user_name is not None) and (discord_user_id is not None):
+        print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
+        raise DiscordSafeException('Internal error')
+    if discord_user_id is not None:
+        user_name = findAssociatedTab(sheets, discord_user_id)
+
     esper_column_A1, pretty_esper_name = findEsperColumn(sheets, user_name, esper_name)
     unit_row, pretty_unit_name = findUnitRow(sheets, user_name, unit_name)
 
@@ -293,8 +288,8 @@ def getDiscordSafeResponse(message):
         from_id = message.author.id
         unit_name = match.group(1).strip()
         esper_name = match.group(2).strip()
-        print('resonance fetch from user %s, for user %s, for unit %s, or esper %s' % (target_user_name, target_user_name, unit_name, esper_name))
-        resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, unit_name, esper_name)
+        print('resonance fetch from user %s, for user %s, for unit %s, for esper %s' % (target_user_name, target_user_name, unit_name, esper_name))
+        resonance, pretty_unit_name, pretty_esper_name = readResonance(None, from_id, unit_name, esper_name)
         return '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content);
