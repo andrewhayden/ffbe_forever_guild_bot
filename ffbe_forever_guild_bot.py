@@ -285,35 +285,38 @@ def getDiscordSafeResponse(message):
 
     match = RES_FETCH_SELF_PATTERN.match(message.content);
     if match:
-        target_user_name = message.author.display_name
+        from_name = message.author.display_name
         from_id = message.author.id
+        from_discrim = message.author.discriminator
         unit_name = match.group(1).strip()
         esper_name = match.group(2).strip()
-        print('resonance fetch from user %s, for user %s, for unit %s, for esper %s' % (target_user_name, target_user_name, unit_name, esper_name))
+        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, from_name, unit_name, esper_name))
         resonance, pretty_unit_name, pretty_esper_name = readResonance(None, from_id, unit_name, esper_name)
         return '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content);
     if match:
         from_name = message.author.display_name
+        from_discrim = message.author.discriminator
         from_id = message.author.id
         target_user_name = match.group(1).strip()
         unit_name = match.group(2).strip()
         esper_name = match.group(3).strip()
-        print('resonance fetch from user %s, for user %s, for unit %s, for esper %s' % (from_name, target_user_name, unit_name, esper_name))
+        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, target_user_name, unit_name, esper_name))
         resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, unit_name, esper_name)
         return '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
 
     match = RES_SET_PATTERN.match(message.content);
     if match:
         from_name = message.author.display_name
+        from_discrim = message.author.discriminator
         from_id = message.author.id
         unit_name = match.group('unit').strip()
         esper_name = match.group('esper').strip()
         resonance_numeric_string = match.group('resonance_level').strip()
         priority = "Low"
         if match.group('priority'): priority = match.group('priority').strip()
-        print('resonance set from user %s, for unit %s, for esper %s, to resonance %s, with priority %s' % (from_name, unit_name, esper_name, resonance_numeric_string, priority))
+        print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s' % (from_name, from_discrim, unit_name, esper_name, resonance_numeric_string, priority))
         old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = setResonance(from_id, unit_name, esper_name, resonance_numeric_string, priority)
         return '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
 
