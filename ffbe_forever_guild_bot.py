@@ -130,17 +130,17 @@ def openSpreadsheets():
             pickle.dump(creds, token)
 
     service = build('sheets', 'v4', credentials=creds)
-    sheets = service.spreadsheets()
-    return (service, sheets)
+    spreadsheetApp = service.spreadsheets()
+    return (service, spreadsheetApp)
 
 # Return the name of the tab to which the specified Discord snowflake/user ID is bound.
 # If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findAssociatedTab(sheets, discord_user_id):
+def findAssociatedTab(spreadsheetApp, discord_user_id):
     # Discord IDs are in column A, the associated tab name is in column B
     range_name = USERS_TAB_NAME + '!A:B'
     rows = None
     try:
-        values = sheets.values().get(spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
+        values = spreadsheetApp.values().get(spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
         rows = values.get('values', [])
         if not rows: raise Exception('')
     except:
@@ -153,13 +153,13 @@ def findAssociatedTab(sheets, discord_user_id):
 
 # Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findEsperColumn(sheets, user_name, esper_name):
+def findEsperColumn(spreadsheetApp, user_name, esper_name):
     # Read the esper names row. Esper names are on row 2.
     range_name = user_name + '!2:2'
     esper_name_rows = None
     esper_name = normalizeName(esper_name)
     try:
-        values = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+        values = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
         esper_name_rows = values.get('values', [])
         if not esper_name_rows: raise Exception('')
     except:
@@ -179,13 +179,13 @@ def findEsperColumn(sheets, user_name, esper_name):
 
 # Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
 # If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findUnitRow(sheets, user_name, unit_name):
+def findUnitRow(spreadsheetApp, user_name, unit_name):
     # Unit names are on column B.
     range_name = user_name + '!B:B'
     unit_name_rows = None
     unit_name = normalizeName(unit_name)
     try:
-        values = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+        values = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
         unit_name_rows = values.get('values', [])
         if not unit_name_rows: raise Exception('')
     except:
@@ -206,19 +206,19 @@ def findUnitRow(sheets, user_name, unit_name):
 # right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
 # and not the data of, e.g., another user who has their old nickname.
 def readResonance(user_name, discord_user_id, unit_name, esper_name):
-    service, sheets = openSpreadsheets()
+    service, spreadsheetApp = openSpreadsheets()
     if (user_name is not None) and (discord_user_id is not None):
         print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
         raise DiscordSafeException('Internal error')
     if discord_user_id is not None:
-        user_name = findAssociatedTab(sheets, discord_user_id)
+        user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
 
-    esper_column_A1, pretty_esper_name = findEsperColumn(sheets, user_name, esper_name)
-    unit_row, pretty_unit_name = findUnitRow(sheets, user_name, unit_name)
+    esper_column_A1, pretty_esper_name = findEsperColumn(spreadsheetApp, user_name, esper_name)
+    unit_row, pretty_unit_name = findUnitRow(spreadsheetApp, user_name, unit_name)
 
     # We have the location. Get the value!
     range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
-    result = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+    result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
     final_rows = result.get('values', [])
 
     if not final_rows:
@@ -251,15 +251,15 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     else:
         raise DiscordSafeException('Unknown priority value. Priority should be blank or one of "L", "low", "M", "medium", "H", "high"')
 
-    service, sheets = openSpreadsheets()
-    user_name = findAssociatedTab(sheets, discord_user_id)
+    service, spreadsheetApp = openSpreadsheets()
+    user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
 
-    esper_column_A1, pretty_esper_name = findEsperColumn(sheets, user_name, esper_name)
-    unit_row, pretty_unit_name = findUnitRow(sheets, user_name, unit_name)
+    esper_column_A1, pretty_esper_name = findEsperColumn(spreadsheetApp, user_name, esper_name)
+    unit_row, pretty_unit_name = findUnitRow(spreadsheetApp, user_name, unit_name)
 
     # We have the location. Get the old value first.
     range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
-    result = sheets.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
+    result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
     final_rows = result.get('values', [])
     old_value_string = '(not set)'
     if final_rows:
@@ -269,7 +269,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
 
     # Now write the new value
     updateBody = {'values': [[priorityString]]}
-    sheets.values().update(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name, valueInputOption='RAW', body=updateBody).execute()
+    spreadsheetApp.values().update(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name, valueInputOption='RAW', body=updateBody).execute()
     return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
 
 # Generate a safe response for a message from discord, or None if no response is needed.
