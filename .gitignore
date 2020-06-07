@@ -3,3 +3,4 @@ bot_config.json
 google_credentials.json
 google_token.pickle
 credentials.json:Zone.Identifier
+discord.log

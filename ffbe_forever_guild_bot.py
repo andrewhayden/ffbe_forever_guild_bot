@@ -1,5 +1,6 @@
 from __future__ import print_function
 import discord
+import logging
 import pickle
 import json
 import os.path
@@ -340,6 +341,13 @@ def getDiscordSafeResponse(message):
 if __name__ == "__main__":
     readConfig()
     discord_client = discord.Client()
+    logger = logging.getLogger('discord')
+    logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.DEBUG)
+    # handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+    logger.addHandler(handler)
 
 def getDiscordClient():
     return discord_client
