@@ -53,7 +53,7 @@ HELP = '''`!resonance unit-name/esper-name`
 > Get **your own** resonance for the named unit and esper. Example: *!resonance mont/cactuar*
 
 `!resonance unit-or-esper-name`
-> Get a full listing of **your own** resonances for the named unit or esper. This will generate a listing, in the same order as the spreadsheet, of all the resonance data for the specified unit or esper. Very useful when trying to select a high-resonance esper. Example: *!resonance lamia*
+> Get a full listing of **your own** resonances for the named unit *or* esper. This will generate a listing, in the same order as the spreadsheet, of all the resonance data for the specified unit *or* esper. Example: *!resonance lamia*
 
 `!resonance-set unit-name/esper-name level[/priority[/comment]]`
 > Set **your own** resonance for the named unit and esper to the specified level. Optionally, include a priority at the end (H/High/M/Medium/L/Low). If a priority has already been set, it will be preserved. If no priority has been set, the default is "Low". Finally, you can add a comment like "for evade build" as the final string, or the string "<blank>" (without the quotes) to clear an existing comment. Example: *!resonance-set mont/cactuar 9/m/because everyone loves cactuars*
@@ -87,6 +87,10 @@ WHOIS_PATTERN = re.compile("^!whois (.+)$")
 ADMIN_ADD_ESPER_PATTERN = re.compile("^!admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$")
 SANDBOX_ADMIN_ADD_ESPER_PATTERN = re.compile("^!sandbox-admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$")
 
+# Maximum length of a Discord message. Messages longer than this need to be split up.
+# The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
+DISCORD_MESSAGE_LENGTH_LIMIT = 1000
+
 class DiscordSafeException(Exception):
     """An exception whose error text is safe to show in Discord.
     Attributes:
@@ -113,6 +117,28 @@ def readConfig():
         DISCORD_BOT_TOKEN = data['discord_bot_token']
         if DISCORD_BOT_TOKEN: print('discord bot token: [redacted, but read successfully]')
 
+# If the given message is longer than DISCORD_MESSAGE_LENGTH_LIMIT, splits the message into as many
+# chunks as necessary in order to stay under the limit for each message. Tries to respect newlines.
+# If a line is too long, this method will fail.
+# Returns a list of message fragments, all under DISCORD_MESSAGE_LENGTH_LIMIT in size.
+def maybeSplitMessageNicely(message_text):
+    if len(message_text) < DISCORD_MESSAGE_LENGTH_LIMIT:
+        return [message_text]
+    result = []
+    buffer = ''
+    lines = message_text.splitlines(keepends=True)
+    for line in lines:
+        if len(line) > DISCORD_MESSAGE_LENGTH_LIMIT:
+            # TODO: Support splitting on words?
+            raise DiscordSafeException('response too long')
+        if (len(buffer) + len(line)) < DISCORD_MESSAGE_LENGTH_LIMIT:
+            buffer += line
+        else:
+            result.append(buffer)
+            buffer = line
+    if len(buffer) > 0:
+        result.append(buffer)
+    return result
 
 # Convert an integer value to "A1 Notation", i.e. the column name in a spreadsheet. Max value 26*26.
 def toA1(intValue):
@@ -659,7 +685,9 @@ async def on_message(message):
     except DiscordSafeException as safeException:
         responseText = safeException.message
     if responseText:
-        await message.channel.send(responseText)
+        fullTextToSend = maybeSplitMessageNicely(responseText)
+        for chunk in fullTextToSend:
+            await message.channel.send(chunk)
 
 if __name__ == "__main__":
     discord_client.run(DISCORD_BOT_TOKEN)
