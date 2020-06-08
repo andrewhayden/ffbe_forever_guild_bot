@@ -117,6 +117,13 @@ def readConfig():
         DISCORD_BOT_TOKEN = data['discord_bot_token']
         if DISCORD_BOT_TOKEN: print('discord bot token: [redacted, but read successfully]')
 
+
+def safeWorksheetName(sheet_name):
+    if "'" in sheet_name:
+        raise DiscordSafeException('Names must not contain apostrophes.')
+    return "'" + sheet_name + "'"
+
+
 # If the given message is longer than DISCORD_MESSAGE_LENGTH_LIMIT, splits the message into as many
 # chunks as necessary in order to stay under the limit for each message. Tries to respect newlines.
 # If a line is too long, this method will fail.
@@ -194,7 +201,7 @@ def openSpreadsheets():
 # If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
 def findAssociatedTab(spreadsheetApp, discord_user_id):
     # Discord IDs are in column A, the associated tab name is in column B
-    range_name = USERS_TAB_NAME + '!A:B'
+    range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:B'
     rows = None
     try:
         values = spreadsheetApp.values().get(spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
@@ -212,7 +219,7 @@ def findAssociatedTab(spreadsheetApp, discord_user_id):
 # Return True if the specified discord user id has administrator permissions.
 def isAdmin(spreadsheetApp, discord_user_id):
     # Discord IDs are in column A, the associated tab name is in column B, and if "Admin" is in column C, then it's an admin.
-    range_name = USERS_TAB_NAME + '!A:C'
+    range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:C'
     rows = None
     try:
         values = spreadsheetApp.values().get(spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
@@ -233,7 +240,7 @@ def isAdmin(spreadsheetApp, discord_user_id):
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
 def findEsperColumn(spreadsheetApp, user_name, esper_name):
     # Read the esper names row. Esper names are on row 2.
-    range_name = user_name + '!2:2'
+    range_name = safeWorksheetName(user_name) + '!2:2'
     esper_name_rows = None
     esper_name = normalizeName(esper_name)
     try:
@@ -259,7 +266,7 @@ def findEsperColumn(spreadsheetApp, user_name, esper_name):
 # If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
 def findUnitRow(spreadsheetApp, user_name, unit_name):
     # Unit names are on column B.
-    range_name = user_name + '!B:B'
+    range_name = safeWorksheetName(user_name) + '!B:B'
     unit_name_rows = None
     unit_name = normalizeName(unit_name)
     try:
@@ -374,7 +381,7 @@ def readResonance(user_name, discord_user_id, unit_name, esper_name):
     unit_row, pretty_unit_name = findUnitRow(spreadsheetApp, user_name, unit_name)
 
     # We have the location. Get the value!
-    range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
+    range_name = safeWorksheetName(user_name) + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
     result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
     final_rows = result.get('values', [])
 
@@ -429,7 +436,7 @@ def readResonanceList(user_name, discord_user_id, query_string):
         raise DiscordSafeException('No esper or unit found whose name starts with "{0}", please check the spelling and try again.'.format(query_string))
 
     # Grab all the data in one call, so we can read everything at once and have atomicity guarantees.
-    result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=user_name).execute()
+    result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=safeWorksheetName(user_name)).execute()
     result_rows = result.get('values', [])
     resonances = []
     if mode == 'for esper':
@@ -503,7 +510,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
         raise DiscordSafeException('Internal error: sheet not found for {0}.'.format(user_name))
 
     # We have the location. Get the old value first.
-    range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
+    range_name = safeWorksheetName(user_name) + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
     result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
     final_rows = result.get('values', [])
     old_value_string = '(not set)'
