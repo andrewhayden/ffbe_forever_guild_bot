@@ -52,8 +52,8 @@ RESONANCE_MAX_VALUE = "10/10"
 HELP = '''`!resonance unit-name/esper-name`
 > Get **your own** resonance for the named unit and esper. Example: *!resonance mont/cactuar*
 
-`!resonance-set unit-name/esper-name level[/priority]`
-> Set **your own** resonance for the named unit and esper to the specified level. Optionally, include a priority at the end (H/High/M/Medium/L/Low). If a priority has already been set, it will be preserved. If no priority has been set, the default is "Low". Example: *!resonance-set mont/cactuar 9/m*
+`!resonance-set unit-name/esper-name level[/priority[/comment]]`
+> Set **your own** resonance for the named unit and esper to the specified level. Optionally, include a priority at the end (H/High/M/Medium/L/Low). If a priority has already been set, it will be preserved. If no priority has been set, the default is "Low". Finally, you can add a comment like "for evade build" as the final string, or the string "<blank>" (without the quotes) to clear an existing comment. Example: *!resonance-set mont/cactuar 9/m*
 
 `!resonance-lookup discord-nickname unit-name/esper-name`
 > Get **someone else's** resonance for the named unit and esper. Unlike !resonance and !resonance-set, the discord-nickname here is not resolved against the user's snowflake ID. Put another way, it's just the name of the tab in the spreadsheet. This can access data of a former guild members, if your guild leader hasn't deleted it. Example: *!resonance-lookup JohnDoe mont/cactuar*
@@ -68,7 +68,7 @@ View your guild's Esper resonance data here: <https://docs.google.com/spreadshee
 RES_FETCH_SELF_PATTERN = re.compile("^!resonance (.+)/(.+)$")
 
 # Pattern for setting your own resonance value
-RES_SET_PATTERN = re.compile("^!resonance-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>\S*))?$")
+RES_SET_PATTERN = re.compile("^!resonance-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>[^\/]+)(/\s*(?P<comment>[^\/]+))?)?$")
 
 # Pattern for getting someone else's resonance value
 RES_FETCH_OTHER_PATTERN = re.compile("^!resonance-lookup (\S+) (.+)/(.+)$")
@@ -354,7 +354,7 @@ def readResonance(user_name, discord_user_id, unit_name, esper_name):
             return value[0], pretty_unit_name, pretty_esper_name
 
 # Set the esper resonance. Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
-def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_string, priority):
+def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_string, priority, comment):
     resonance_int = None
     try:
         resonance_int = int(resonance_numeric_string)
@@ -382,6 +382,16 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     esper_column_A1, pretty_esper_name = findEsperColumn(spreadsheetApp, user_name, esper_name)
     unit_row, pretty_unit_name = findUnitRow(spreadsheetApp, user_name, unit_name)
 
+    spreadsheet = spreadsheetApp.get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID).execute()
+    sheetId = None
+    for sheet in spreadsheet['sheets']:
+        sheetTitle = sheet['properties']['title']
+        if sheetTitle == user_name:
+            sheetId = sheet['properties']['sheetId']
+            break
+    if sheetId is None:
+        raise DiscordSafeException('Internal error: sheet not found for {0}.'.format(user_name))
+
     # We have the location. Get the old value first.
     range_name = user_name + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
     result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
@@ -393,8 +403,56 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
                 old_value_string = value[0]
 
     # Now write the new value
-    updateBody = {'values': [[priorityString]]}
-    spreadsheetApp.values().update(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name, valueInputOption='RAW', body=updateBody).execute()
+    updateValueRequest = {
+        'updateCells': {
+            'rows': [{
+                'values': [{
+                    'userEnteredValue': {
+                        'stringValue': priorityString
+                    }
+                }]
+            }],
+            'fields': 'userEnteredValue',
+            'range': {
+                'sheetId': sheetId,
+                'startRowIndex': unit_row-1, # inclusive
+                'endRowIndex': unit_row, # exclusive
+                'startColumnIndex': fromA1(esper_column_A1), # inclusive
+                'endColumnIndex': fromA1(esper_column_A1)+1 # exclusive
+            }
+        }
+    }
+    allRequests = []
+    allRequests.append(updateValueRequest)
+
+    if comment:
+        commentText = comment
+        if comment == '<blank>': # Allow clearing the comment
+            commentText = ''
+        updateCommentRequest = {
+            'updateCells': {
+                'rows': [{
+                    'values': [{
+                        'note': commentText
+                    }]
+                }],
+                'fields': 'note',
+                'range': {
+                    'sheetId': sheetId,
+                    'startRowIndex': unit_row-1, # inclusive
+                    'endRowIndex': unit_row, # exclusive
+                    'startColumnIndex': fromA1(esper_column_A1), # inclusive
+                    'endColumnIndex': fromA1(esper_column_A1)+1 # exclusive
+                }
+            }
+        }
+        allRequests.append(updateCommentRequest)
+
+    requestBody = {
+        'requests': [allRequests]
+    }
+    # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
+    spreadsheetApp.batchUpdate(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, body=requestBody).execute()
     return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
 
 # Generate a safe response for a message from discord, or None if no response is needed.
@@ -436,8 +494,10 @@ def getDiscordSafeResponse(message):
         resonance_numeric_string = match.group('resonance_level').strip()
         priority = "Low"
         if match.group('priority'): priority = match.group('priority').strip()
-        print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s' % (from_name, from_discrim, unit_name, esper_name, resonance_numeric_string, priority))
-        old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = setResonance(from_id, unit_name, esper_name, resonance_numeric_string, priority)
+        comment = None
+        if match.group('comment'): comment = match.group('comment').strip()
+        print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s, comment %s' % (from_name, from_discrim, unit_name, esper_name, resonance_numeric_string, priority, comment))
+        old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = setResonance(from_id, unit_name, esper_name, resonance_numeric_string, priority, comment)
         return '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
 
     # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
