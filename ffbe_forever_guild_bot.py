@@ -2,6 +2,7 @@ from __future__ import print_function
 import discord
 import logging
 import pickle
+import pprint # for pretty-printing JSON during debugging, etc
 import json
 import os.path
 import re
@@ -26,6 +27,9 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 # The ID of the Esper Resonance spreadsheet that the bot maintains
 ESPER_RESONANCE_SPREADSHEET_ID = None
+
+# The ID of a sandbox Esper Resonance spreadsheet that the bot can use for testing operations
+SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID = None
 
 # The ID of the spreadsheet that provides Discord User ID <-> Alias mappings for access control.
 ACCESS_CONTROL_SPREADSHEET_ID = None
@@ -72,6 +76,11 @@ RES_FETCH_OTHER_PATTERN = re.compile("^!resonance-lookup (\S+) (.+)/(.+)$")
 # (Hidden) Pattern for getting your own resonance value
 WHOIS_PATTERN = re.compile("^!whois (.+)$")
 
+# (Admin only) Pattern for adding an Esper column.
+# Sandbox mode uses a different sheet, for testing.
+ADMIN_ADD_ESPER_PATTERN = re.compile("^!admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$")
+SANDBOX_ADMIN_ADD_ESPER_PATTERN = re.compile("^!sandbox-admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$")
+
 class DiscordSafeException(Exception):
     """An exception whose error text is safe to show in Discord.
     Attributes:
@@ -86,12 +95,15 @@ class DiscordSafeException(Exception):
 def readConfig():
     global ACCESS_CONTROL_SPREADSHEET_ID
     global ESPER_RESONANCE_SPREADSHEET_ID
+    global SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
     global DISCORD_BOT_TOKEN
     with open(CONFIG_FILE_PATH) as config_file:
         data = json.load(config_file)
         ACCESS_CONTROL_SPREADSHEET_ID = data['access_control_spreadsheet_id']
         ESPER_RESONANCE_SPREADSHEET_ID = data['esper_resonance_spreadsheet_id']
-        print('spreadsheet id: %s' % (ESPER_RESONANCE_SPREADSHEET_ID))
+        SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID = data['sandbox_esper_resonance_spreadsheet_id']
+        print('esper resonance spreadsheet id: %s' % (ESPER_RESONANCE_SPREADSHEET_ID))
+        print('sandbox esper resonance spreadsheet id: %s' % (SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID))
         DISCORD_BOT_TOKEN = data['discord_bot_token']
         if DISCORD_BOT_TOKEN: print('discord bot token: [redacted, but read successfully]')
 
@@ -104,11 +116,24 @@ def toA1(intValue):
     remainder = intValue - (bigPart * 26)
     return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[bigPart - 1] + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[intValue - 1]
 
+
+def fromA1(a1Value):
+    numChars = len(a1Value)
+    if numChars > 2:
+        raise DiscordSafeException('number too large: ' + a1Value)
+    a1Value = a1Value.upper()
+    result = (ord(a1Value[-1]) - ord('A')) + 1
+    if numChars == 2:
+        upper = (ord(a1Value[-2]) - ord('A')) + 1
+        result = (26 * upper) + result
+    return result
+
+
 # Normalize a name, lowercasing it and replacing spaces with hyphens.
 def normalizeName(fancy_name):
     return fancy_name.strip().lower().replace(" ", "-")
 
-# Open the spreadsheet and return a tuple of the service object and the spreadsheet.
+# Open the spreadsheet and return a tuple of the service object and the spreadsheets object.
 def openSpreadsheets():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
@@ -150,6 +175,27 @@ def findAssociatedTab(spreadsheetApp, discord_user_id):
         if (str(row[0]) == str(discord_user_id)):
             return row[1]
     raise DiscordSafeException('User with ID {0} is not configured, or is not allowed to access this data. Ask your guild administrator for assistance.'.format(discord_user_id))
+
+
+# Return True if the specified discord user id has administrator permissions.
+def isAdmin(spreadsheetApp, discord_user_id):
+    # Discord IDs are in column A, the associated tab name is in column B, and if "Admin" is in column C, then it's an admin.
+    range_name = USERS_TAB_NAME + '!A:C'
+    rows = None
+    try:
+        values = spreadsheetApp.values().get(spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
+        rows = values.get('values', [])
+        if not rows: raise Exception('')
+    except:
+        raise DiscordSafeException('Spreadsheet misconfigured'.format(discord_user_id))
+
+    for row in rows:
+        if (str(row[0]) == str(discord_user_id)):
+            result = (len(row) > 2 and row[2] and row[2].lower() == 'admin')
+            print('Admin check for discord user {0}: {1}'.format(discord_user_id, result))
+            return result
+    return False
+
 
 # Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
@@ -199,6 +245,85 @@ def findUnitRow(spreadsheetApp, user_name, unit_name):
                 return (row_count, pretty_name)
     raise DiscordSafeException('No such unit {0} is being tracked by user {1}, perhaps they do not have it yet.'.format(unit_name, user_name))
 
+
+# Add a new column for an esper.
+# The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
+# If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
+def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, columnA1, sandbox):
+    inheritValue = None
+    columnInteger = fromA1(columnA1)
+    if left_or_right_of == 'left-of':
+        inheritFromBefore = False # Meaning, inherit from right
+    elif left_or_right_of == 'right-of':
+        inheritFromBefore = True # Meaning, inherit from left
+        columnInteger += 1
+    else:
+        raise DiscordSafeException('Incorrect parameter for position of new column, must be "left-of" or "right-of": ' + left_or_right_of)
+
+    service, spreadsheetApp = openSpreadsheets()
+    if not isAdmin(spreadsheetApp, discord_user_id):
+        raise DiscordSafeException('You do not have permission to add an esper.')
+
+    targetSpreadsheetId = None
+    if (sandbox):
+        targetSpreadsheetId = SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
+    else:
+        targetSpreadsheetId = ESPER_RESONANCE_SPREADSHEET_ID
+    spreadsheet = spreadsheetApp.get(spreadsheetId=targetSpreadsheetId).execute()
+
+    allRequests = []
+    for sheet in spreadsheet['sheets']:
+        sheetId = sheet['properties']['sheetId']
+        sheetTitle = sheet['properties']['title']
+        # First create an 'insertDimension' request to add a blank column on each sheet.
+        insertDimensionRequest = {
+            'insertDimension': {
+                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
+                'inheritFromBefore': inheritFromBefore,
+                'range': {
+                    'sheetId': sheetId,
+                    'dimension': 'COLUMNS',
+                    'startIndex': columnInteger - 1,
+                    'endIndex': columnInteger
+                }
+            }
+        }
+        allRequests.append(insertDimensionRequest)
+
+        # Now add the esper data to the new column on each sheet.
+        startColumnIndex = columnInteger - 1
+        updateCellsRequest = {
+            'updateCells': {
+                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
+                'rows': [{
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
+                    'values': [{
+                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
+                        'userEnteredValue': {
+                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                            'formulaValue': '=HYPERLINK("' + esper_url +'", "' + esper_name + '")'
+                        }
+                    }]
+                }],
+                'fields': 'userEnteredValue',
+                'range': {
+                    'sheetId': sheetId,
+                    'startRowIndex': 1, # inclusive
+                    'endRowIndex': 2, # exclusive
+                    'startColumnIndex': startColumnIndex, # inclusive
+                    'endColumnIndex': startColumnIndex+1 # exclusive
+                }
+            }
+        }
+        allRequests.append(updateCellsRequest)
+
+    requestBody = {
+        'requests': [allRequests]
+    }
+    # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
+    spreadsheetApp.batchUpdate(spreadsheetId=targetSpreadsheetId, body=requestBody).execute()
+
+    return
 
 # Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
 # Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
@@ -283,11 +408,12 @@ def getDiscordSafeResponse(message):
     if not message.content.startswith('!'):
         return
 
+    from_name = message.author.display_name
+    from_id = message.author.id
+    from_discrim = message.author.discriminator
+
     match = RES_FETCH_SELF_PATTERN.match(message.content);
     if match:
-        from_name = message.author.display_name
-        from_id = message.author.id
-        from_discrim = message.author.discriminator
         unit_name = match.group(1).strip()
         esper_name = match.group(2).strip()
         print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, from_name, unit_name, esper_name))
@@ -296,9 +422,6 @@ def getDiscordSafeResponse(message):
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content);
     if match:
-        from_name = message.author.display_name
-        from_discrim = message.author.discriminator
-        from_id = message.author.id
         target_user_name = match.group(1).strip()
         unit_name = match.group(2).strip()
         esper_name = match.group(3).strip()
@@ -308,9 +431,6 @@ def getDiscordSafeResponse(message):
 
     match = RES_SET_PATTERN.match(message.content);
     if match:
-        from_name = message.author.display_name
-        from_discrim = message.author.discriminator
-        from_id = message.author.id
         unit_name = match.group('unit').strip()
         esper_name = match.group('esper').strip()
         resonance_numeric_string = match.group('resonance_level').strip()
@@ -323,20 +443,41 @@ def getDiscordSafeResponse(message):
     # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
     if message.content.startswith('!whoami'):
-        from_id = message.author.id
         return '<@{0}>: Your snowflake ID is {0}'.format(from_id, from_id)
 
     # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
     match = WHOIS_PATTERN.match(message.content);
     if match:
-        from_id = message.author.id
         target_member_name = match.group(1).strip()
         members = message.guild.members
         for member in members:
             if (member.name == target_member_name):
                 return '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
         return '<@{0}>: no such member {1}'.format(from_id, target_member_name)
+
+    # (Admin only) Pattern for adding an Esper column.
+    match = ADMIN_ADD_ESPER_PATTERN.match(message.content)
+    sandbox_match = SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(message.content)
+    admin_add_esper_match = None
+    sandbox = False
+    if match:
+        admin_add_esper_match = match
+    elif sandbox_match:
+        admin_add_esper_match = sandbox_match
+        sandbox = True
+
+    if admin_add_esper_match:
+        esper_name = admin_add_esper_match.group('name').strip()
+        esper_url = admin_add_esper_match.group('url').strip()
+        left_or_right_of = admin_add_esper_match.group('left_or_right_of').strip()
+        column = admin_add_esper_match.group('column').strip()
+        print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(from_name, from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
+        addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
+        return 'TODO, added esper!'
+
+    if message.content.startswith('!resonance'):
+        return '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
 
     if message.content.startswith('!help'):
         return HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
