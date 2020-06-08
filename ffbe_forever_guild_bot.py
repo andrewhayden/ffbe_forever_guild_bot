@@ -52,6 +52,9 @@ RESONANCE_MAX_VALUE = "10/10"
 HELP = '''`!resonance unit-name/esper-name`
 > Get **your own** resonance for the named unit and esper. Example: *!resonance mont/cactuar*
 
+`!resonance unit-or-esper-name`
+> Get a full listing of **your own** resonances for the named unit or esper. This will generate a listing, in the same order as the spreadsheet, of all the resonance data for the specified unit or esper. Very useful when trying to select a high-resonance esper. Example: *!resonance lamia*
+
 `!resonance-set unit-name/esper-name level[/priority[/comment]]`
 > Set **your own** resonance for the named unit and esper to the specified level. Optionally, include a priority at the end (H/High/M/Medium/L/Low). If a priority has already been set, it will be preserved. If no priority has been set, the default is "Low". Finally, you can add a comment like "for evade build" as the final string, or the string "<blank>" (without the quotes) to clear an existing comment. Example: *!resonance-set mont/cactuar 9/m/because everyone loves cactuars*
 
@@ -66,6 +69,9 @@ View your guild's Esper resonance data here: <https://docs.google.com/spreadshee
 
 # Pattern for getting your own resonance value
 RES_FETCH_SELF_PATTERN = re.compile("^!resonance (.+)/(.+)$")
+
+# Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
+RES_LIST_SELF_PATTERN = re.compile("^!resonance (?P<target_name>.+)$")
 
 # Pattern for setting your own resonance value
 RES_SET_PATTERN = re.compile("^!resonance-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>[^\/]+)(/\s*(?P<comment>[^\/]+))?)?$")
@@ -353,6 +359,84 @@ def readResonance(user_name, discord_user_id, unit_name, esper_name):
         for value in final_rows:
             return value[0], pretty_unit_name, pretty_esper_name
 
+
+# Read and return the pretty name of the query subject (either a unit or an esper), along with a list of resonances
+# (either unit/resonance, or esper/resonance tuples), for the given user.
+# Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
+# same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
+# right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
+# and not the data of, e.g., another user who has their old nickname.
+def readResonanceList(user_name, discord_user_id, query_string):
+    service, spreadsheetApp = openSpreadsheets()
+    if (user_name is not None) and (discord_user_id is not None):
+        print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
+        raise DiscordSafeException('Internal error')
+    if discord_user_id is not None:
+        user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
+
+    esper_column_A1 = None
+    pretty_esper_name = None
+    unit_row_index = None
+    pretty_unit_name = None
+    mode = None
+    target_name = None
+
+    # First try to look up a unit whose name matches.
+    try:
+        unit_row_index, pretty_unit_name = findUnitRow(spreadsheetApp, user_name, query_string)
+        mode = 'for unit'
+        target_name = pretty_unit_name
+    except:
+        pass
+
+    # Try an esper lookup instead
+    if mode is None:
+        try:
+            esper_column_A1, pretty_esper_name = findEsperColumn(spreadsheetApp, user_name, query_string)
+            mode = 'for esper'
+            target_name = pretty_esper_name
+        except:
+            pass
+
+    # If neither esper or unit is found, fail now.
+    if mode is None:
+        raise DiscordSafeException('No esper or unit found whose name starts with "{0}", please check the spelling and try again.'.format(query_string))
+
+    # Grab all the data in one call, so we can read everything at once and have atomicity guarantees.
+    result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=user_name).execute()
+    result_rows = result.get('values', [])
+    resonances = []
+    if mode == 'for esper':
+        esper_index = fromA1(esper_column_A1) - 1 # 0-indexed in result
+        rowCount = 0
+        for row in result_rows:
+            rowCount += 1
+            if rowCount < 3:
+                # skip headers
+                continue
+            if len(row) > esper_index: # rows collapse to the left, so only the last non-empty column exists in the data
+                if row[esper_index]: # annnnd as a result, there might be a value to the right, while this column could be empty.
+                    resonances.append(row[1] + ': ' + row[esper_index])
+    else: # mode == 'for unit'
+        colCount = 0
+        unit_row = result_rows[unit_row_index - 1] # 0-indexed in result
+        for column in unit_row:
+            colCount += 1
+            if colCount < 3:
+                # skip headers
+                continue
+            if column:
+                # Grab the esper name from the top of this column, and then append the column value.
+                resonances.append(result_rows[1][colCount - 1] + ': ' + column)
+
+    #Format the list nicely for responding in Discord
+    resultString = ''
+    for resonance in resonances:
+        resultString += resonance + '\n'
+    resultString = resultString.strip()
+    return (target_name, resultString)
+
+
 # Set the esper resonance. Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
 def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_string, priority, comment):
     resonance_int = None
@@ -417,8 +501,8 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
                 'sheetId': sheetId,
                 'startRowIndex': unit_row-1, # inclusive
                 'endRowIndex': unit_row, # exclusive
-                'startColumnIndex': fromA1(esper_column_A1), # inclusive
-                'endColumnIndex': fromA1(esper_column_A1)+1 # exclusive
+                'startColumnIndex': fromA1(esper_column_A1)-1, # inclusive
+                'endColumnIndex': fromA1(esper_column_A1) # exclusive
             }
         }
     }
@@ -441,8 +525,8 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
                     'sheetId': sheetId,
                     'startRowIndex': unit_row-1, # inclusive
                     'endRowIndex': unit_row, # exclusive
-                    'startColumnIndex': fromA1(esper_column_A1), # inclusive
-                    'endColumnIndex': fromA1(esper_column_A1)+1 # exclusive
+                    'startColumnIndex': fromA1(esper_column_A1)-1, # inclusive
+                    'endColumnIndex': fromA1(esper_column_A1) # exclusive
                 }
             }
         }
@@ -477,6 +561,13 @@ def getDiscordSafeResponse(message):
         print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, from_name, unit_name, esper_name))
         resonance, pretty_unit_name, pretty_esper_name = readResonance(None, from_id, unit_name, esper_name)
         return '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
+
+    match = RES_LIST_SELF_PATTERN.match(message.content);
+    if match:
+        target_name = match.group('target_name').strip()
+        print('resonance list fetch from user %s#%s, for target %s' % (from_name, from_discrim, target_name))
+        pretty_name, resonance_listing = readResonanceList(None, from_id, target_name)
+        return '<@{0}>: resonance listing for {1}:\n{2}'.format(from_id, pretty_name, resonance_listing)
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content);
     if match:
@@ -534,7 +625,7 @@ def getDiscordSafeResponse(message):
         column = admin_add_esper_match.group('column').strip()
         print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(from_name, from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
         addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
-        return 'TODO, added esper!'
+        return '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
 
     if message.content.startswith('!resonance'):
         return '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
