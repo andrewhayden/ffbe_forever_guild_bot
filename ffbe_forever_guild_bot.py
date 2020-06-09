@@ -480,19 +480,6 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     if (resonance_int < 0) or (resonance_int > 10):
         raise DiscordSafeException('Resonance must be a value in the range 0 - 10')
 
-    priority = priority.lower()
-    priorityString = None
-    if (resonance_int == 10):
-        priorityString = '10/10'
-    elif (priority == 'l') or (priority == 'low'):
-        priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
-    elif (priority == 'm') or (priority == 'medium'):
-        priorityString = RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
-    elif (priority == 'h') or (priority == 'high'):
-        priorityString = RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
-    else:
-        raise DiscordSafeException('Unknown priority value. Priority should be blank or one of "L", "low", "M", "medium", "H", "high"')
-
     service, spreadsheetApp = openSpreadsheets()
     user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
 
@@ -518,6 +505,26 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
         for row in final_rows:
             for value in final_rows:
                 old_value_string = value[0]
+
+    # Now that we have the old value, try to update the new value.
+    # If priority is blank, leave the level (high/medium/low) alone.
+    if priority is not None:
+        priority = priority.lower()
+    priorityString = None
+    if (resonance_int == 10):
+        priorityString = '10/10'
+    elif (priority == 'l') or (priority == 'low') or (priority is None and 'low' in old_value_string.lower()):
+        priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    elif (priority == 'm') or (priority == 'medium') or (priority is None and 'medium' in old_value_string.lower()):
+        priorityString = RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    elif (priority == 'h') or (priority == 'high') or (priority is None and 'high' in old_value_string.lower()):
+        priorityString = RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    elif (priority is None):
+        # Priority not specified, and old value doesn't have high/medium/low -> old value was blank, or old value was 10.
+        # Default to low priority.
+        priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(resonance_int)
+    else:
+        raise DiscordSafeException('Unknown priority value. Priority should be blank or one of "L", "low", "M", "medium", "H", "high"')
 
     # Now write the new value
     updateValueRequest = {
@@ -616,7 +623,7 @@ def getDiscordSafeResponse(message):
         unit_name = match.group('unit').strip()
         esper_name = match.group('esper').strip()
         resonance_numeric_string = match.group('resonance_level').strip()
-        priority = "Low"
+        priority = None
         if match.group('priority'): priority = match.group('priority').strip()
         comment = None
         if match.group('comment'): comment = match.group('comment').strip()
