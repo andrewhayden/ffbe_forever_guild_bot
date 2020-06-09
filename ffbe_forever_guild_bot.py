@@ -582,13 +582,13 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
 # Generate a safe response for a message from discord, or None if no response is needed.
 def getDiscordSafeResponse(message):
     if message.author == discord_client.user:
-        return
+        return (None, None)
 
     if not message.content:
-        return
+        return (None, None)
 
     if not message.content.startswith('!'):
-        return
+        return (None, None)
 
     from_name = message.author.display_name
     from_id = message.author.id
@@ -600,14 +600,16 @@ def getDiscordSafeResponse(message):
         esper_name = match.group(2).strip()
         print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, from_name, unit_name, esper_name))
         resonance, pretty_unit_name, pretty_esper_name = readResonance(None, from_id, unit_name, esper_name)
-        return '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
+        responseText = '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
+        return (responseText, None)
 
     match = RES_LIST_SELF_PATTERN.match(message.content);
     if match:
         target_name = match.group('target_name').strip()
         print('resonance list fetch from user %s#%s, for target %s' % (from_name, from_discrim, target_name))
         pretty_name, resonance_listing = readResonanceList(None, from_id, target_name)
-        return '<@{0}>: resonance listing for {1}:\n{2}'.format(from_id, pretty_name, resonance_listing)
+        responseText = '<@{0}>: resonance listing for {1}:\n{2}'.format(from_id, pretty_name, resonance_listing)
+        return (responseText, None)
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content);
     if match:
@@ -616,7 +618,8 @@ def getDiscordSafeResponse(message):
         esper_name = match.group(3).strip()
         print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, target_user_name, unit_name, esper_name))
         resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, unit_name, esper_name)
-        return '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
+        responseText = '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
+        return (responseText, None)
 
     match = RES_SET_PATTERN.match(message.content);
     if match:
@@ -629,12 +632,19 @@ def getDiscordSafeResponse(message):
         if match.group('comment'): comment = match.group('comment').strip()
         print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s, comment %s' % (from_name, from_discrim, unit_name, esper_name, resonance_numeric_string, priority, comment))
         old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = setResonance(from_id, unit_name, esper_name, resonance_numeric_string, priority, comment)
-        return '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
+        responseText = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
+        if (resonance_numeric_string and int(resonance_numeric_string) == 10):
+            # reaction = '\U0001F4AA' # CLDR: flexed biceps
+            reaction = '\U0001F3C6' # CLDR: trophy
+        else:
+            reaction = '\U00002705' # CLDR: check mark button
+        return (responseText, reaction)
 
     # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
     if message.content.startswith('!whoami'):
-        return '<@{0}>: Your snowflake ID is {0}'.format(from_id, from_id)
+        responseText = '<@{0}>: Your snowflake ID is {0}'.format(from_id, from_id)
+        return (responseText, None)
 
     # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
@@ -645,7 +655,8 @@ def getDiscordSafeResponse(message):
         for member in members:
             if (member.name == target_member_name):
                 return '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
-        return '<@{0}>: no such member {1}'.format(from_id, target_member_name)
+        responseText = '<@{0}>: no such member {1}'.format(from_id, target_member_name)
+        return (responseText, None)
 
     # (Admin only) Pattern for adding an Esper column.
     match = ADMIN_ADD_ESPER_PATTERN.match(message.content)
@@ -665,13 +676,16 @@ def getDiscordSafeResponse(message):
         column = admin_add_esper_match.group('column').strip()
         print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(from_name, from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
         addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
-        return '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
+        responseText = '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
+        return (responseText, None)
 
     if message.content.startswith('!resonance'):
-        return '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
+        responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
+        return (responseText, None)
 
     if message.content.startswith('!help'):
-        return HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
+        responseText = HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
+        return (responseText, None)
 
 if __name__ == "__main__":
     readConfig()
@@ -694,14 +708,17 @@ async def on_ready():
 @discord_client.event
 async def on_message(message):
     responseText = None
+    reaction = None
     try:
-        responseText = getDiscordSafeResponse(message)
+        responseText, reaction = getDiscordSafeResponse(message)
     except DiscordSafeException as safeException:
         responseText = safeException.message
     if responseText:
         fullTextToSend = maybeSplitMessageNicely(responseText)
         for chunk in fullTextToSend:
             await message.channel.send(chunk)
+    if reaction:
+        await message.add_reaction(reaction)
 
 if __name__ == "__main__":
     discord_client.run(DISCORD_BOT_TOKEN)
