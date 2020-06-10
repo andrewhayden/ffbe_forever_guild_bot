@@ -68,16 +68,16 @@ View your guild's Esper resonance data here: <https://docs.google.com/spreadshee
 '''
 
 # Pattern for getting your own resonance value
-RES_FETCH_SELF_PATTERN = re.compile("^!resonance (.+)/(.+)$")
+RES_FETCH_SELF_PATTERN = re.compile("^!res(?:onance)? (.+)/(.+)$")
 
 # Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
-RES_LIST_SELF_PATTERN = re.compile("^!resonance (?P<target_name>.+)$")
+RES_LIST_SELF_PATTERN = re.compile("^!res(?:onance)? (?P<target_name>.+)$")
 
 # Pattern for setting your own resonance value
-RES_SET_PATTERN = re.compile("^!resonance-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>[^\/]+)(/\s*(?P<comment>[^\/]+))?)?$")
+RES_SET_PATTERN = re.compile("^!res(?:onance)?-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>[^\/]+)(/\s*(?P<comment>[^\/]+))?)?$")
 
 # Pattern for getting someone else's resonance value
-RES_FETCH_OTHER_PATTERN = re.compile("^!resonance-lookup (\S+) (.+)/(.+)$")
+RES_FETCH_OTHER_PATTERN = re.compile("^!res(?:onance)?-lookup (\S+) (.+)/(.+)$")
 
 # (Hidden) Pattern for getting your own resonance value
 WHOIS_PATTERN = re.compile("^!whois (.+)$")
@@ -617,7 +617,7 @@ def getDiscordSafeResponse(message):
         unit_name = match.group(2).strip()
         esper_name = match.group(3).strip()
         print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, target_user_name, unit_name, esper_name))
-        resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, unit_name, esper_name)
+        resonance, pretty_unit_name, pretty_esper_name = readResonance(target_user_name, None, unit_name, esper_name)
         responseText = '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
         return (responseText, None)
 
@@ -686,6 +686,8 @@ def getDiscordSafeResponse(message):
     if message.content.startswith('!help'):
         responseText = HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
         return (responseText, None)
+
+    return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands. Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
 
 if __name__ == "__main__":
     readConfig()
