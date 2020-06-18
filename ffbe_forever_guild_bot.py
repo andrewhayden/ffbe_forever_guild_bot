@@ -649,6 +649,9 @@ def getDiscordSafeResponse(message):
     from_id = message.author.id
     from_discrim = message.author.discriminator
 
+    # Normalize message content: all lower case, no leading or trailing whitespace.
+    message.content = message.content.lower().strip()
+
     match = RES_FETCH_SELF_PATTERN.match(message.content)
     if match:
         unit_name = match.group(1).strip()
