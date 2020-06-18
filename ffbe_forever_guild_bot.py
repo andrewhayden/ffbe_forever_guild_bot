@@ -740,10 +740,7 @@ def getDiscordSafeResponse(message):
     from_id = message.author.id
     from_discrim = message.author.discriminator
 
-    # Normalize message content: all lower case, no leading or trailing whitespace.
-    message.content = message.content.lower().strip()
-
-    match = RES_FETCH_SELF_PATTERN.match(message.content)
+    match = RES_FETCH_SELF_PATTERN.match(message.content.lower())
     if match:
         unit_name = match.group(1).strip()
         esper_name = match.group(2).strip()
@@ -755,7 +752,7 @@ def getDiscordSafeResponse(message):
             from_id, pretty_unit_name, pretty_esper_name, resonance)
         return (responseText, None)
 
-    match = RES_LIST_SELF_PATTERN.match(message.content)
+    match = RES_LIST_SELF_PATTERN.match(message.content.lower())
     if match:
         target_name = match.group('target_name').strip()
         print('resonance list fetch from user %s#%s, for target %s' %
@@ -766,7 +763,7 @@ def getDiscordSafeResponse(message):
             from_id, pretty_name, resonance_listing)
         return (responseText, None)
 
-    match = RES_FETCH_OTHER_PATTERN.match(message.content)
+    match = RES_FETCH_OTHER_PATTERN.match(message.content.lower())
     if match:
         target_user_name = match.group(1).strip()
         unit_name = match.group(2).strip()
@@ -779,7 +776,7 @@ def getDiscordSafeResponse(message):
             from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
         return (responseText, None)
 
-    match = RES_SET_PATTERN.match(message.content)
+    match = RES_SET_PATTERN.match(message.content.lower())
     if match:
         unit_name = match.group('unit').strip()
         esper_name = match.group('esper').strip()
@@ -805,14 +802,14 @@ def getDiscordSafeResponse(message):
 
     # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
-    if message.content.startswith('!whoami'):
+    if message.content.lower().startswith('!whoami'):
         responseText = '<@{0}>: Your snowflake ID is {1}'.format(
             from_id, from_id)
         return (responseText, None)
 
     # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
-    match = WHOIS_PATTERN.match(message.content)
+    match = WHOIS_PATTERN.match(message.content.lower())
     if match:
         target_member_name = match.group(1).strip()
         members = message.guild.members
@@ -870,12 +867,12 @@ def getDiscordSafeResponse(message):
         responseText = '<@{0}>: Added unit {1}!'.format(from_id, unit_name)
         return (responseText, None)
 
-    if message.content.startswith('!resonance'):
+    if message.content.lower().startswith('!resonance'):
         responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(
             from_id)
         return (responseText, None)
 
-    if message.content.startswith('!help'):
+    if message.content.lower().startswith('!help'):
         responseText = HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
         return (responseText, None)
 
