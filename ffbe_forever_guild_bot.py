@@ -91,6 +91,13 @@ ADMIN_ADD_ESPER_PATTERN = re.compile(
 SANDBOX_ADMIN_ADD_ESPER_PATTERN = re.compile(
     r'^!sandbox-admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$')
 
+# (Admin only) Pattern for adding a Unit row.
+# Sandbox mode uses a different sheet, for testing.
+ADMIN_ADD_UNIT_PATTERN = re.compile(
+    r'^!admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
+SANDBOX_ADMIN_ADD_UNIT_PATTERN = re.compile(
+    r'^!sandbox-admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
+
 # Maximum length of a Discord message. Messages longer than this need to be split up.
 # The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
 DISCORD_MESSAGE_LENGTH_LIMIT = 1000
@@ -395,6 +402,90 @@ def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, col
         spreadsheetId=targetSpreadsheetId, body=requestBody).execute()
 
     return
+
+
+# Add a new row for a unit.
+# The above_or_below parameter needs to be either the string 'above' or 'below'. The row should be in 1-based notation,
+# i.e. the first row is row 1, not row 0.
+# If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
+def addUnitRow(discord_user_id, unit_name, unit_url, above_or_below, row1Based, sandbox):
+    rowInteger = int(row1Based)
+    if above_or_below == 'above':
+        inheritFromBefore = False  # Meaning, inherit from below
+    elif above_or_below == 'below':
+        inheritFromBefore = True  # Meaning, inherit from above
+        rowInteger += 1
+    else:
+        raise DiscordSafeException(
+            'Incorrect parameter for position of new row, must be "above" or "below": ' + above_or_below)
+
+    spreadsheetApp = openSpreadsheets()
+    if not isAdmin(spreadsheetApp, discord_user_id):
+        raise DiscordSafeException(
+            'You do not have permission to add a unit.')
+
+    targetSpreadsheetId = None
+    if (sandbox):
+        targetSpreadsheetId = SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
+    else:
+        targetSpreadsheetId = ESPER_RESONANCE_SPREADSHEET_ID
+    spreadsheet = spreadsheetApp.get(
+        spreadsheetId=targetSpreadsheetId).execute()
+
+    allRequests = []
+    for sheet in spreadsheet['sheets']:
+        sheetId = sheet['properties']['sheetId']
+        # First create an 'insertDimension' request to add a blank row on each sheet.
+        insertDimensionRequest = {
+            'insertDimension': {
+                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
+                'inheritFromBefore': inheritFromBefore,
+                'range': {
+                    'sheetId': sheetId,
+                    'dimension': 'ROWS',
+                    'startIndex': rowInteger - 1,
+                    'endIndex': rowInteger
+                }
+            }
+        }
+        allRequests.append(insertDimensionRequest)
+
+        # Now add the unit data to the new row on each sheet.
+        startRowIndex = rowInteger - 1
+        updateCellsRequest = {
+            'updateCells': {
+                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
+                'rows': [{
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
+                    'values': [{
+                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
+                        'userEnteredValue': {
+                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                            'formulaValue': '=HYPERLINK("' + unit_url + '", "' + unit_name + '")'
+                        }
+                    }]
+                }],
+                'fields': 'userEnteredValue',
+                'range': {
+                    'sheetId': sheetId,
+                    'startRowIndex': startRowIndex,  # inclusive
+                    'endRowIndex': startRowIndex+1,  # exclusive
+                    'startColumnIndex': 1,  # inclusive
+                    'endColumnIndex': 2  # exclusive
+                }
+            }
+        }
+        allRequests.append(updateCellsRequest)
+
+    requestBody = {
+        'requests': [allRequests]
+    }
+    # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
+    spreadsheetApp.batchUpdate(
+        spreadsheetId=targetSpreadsheetId, body=requestBody).execute()
+
+    return
+
 
 # Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
 # Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
@@ -754,6 +845,29 @@ def getDiscordSafeResponse(message):
         addEsperColumn(from_id, esper_name, esper_url,
                        left_or_right_of, column, sandbox)
         responseText = '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
+        return (responseText, None)
+
+    # (Admin only) Pattern for adding a Unit row.
+    match = ADMIN_ADD_UNIT_PATTERN.match(message.content)
+    sandbox_match = SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content)
+    admin_add_unit_match = None
+    sandbox = False
+    if match:
+        admin_add_unit_match = match
+    elif sandbox_match:
+        admin_add_unit_match = sandbox_match
+        sandbox = True
+
+    if admin_add_unit_match:
+        unit_name = admin_add_unit_match.group('name').strip()
+        unit_url = admin_add_unit_match.group('url').strip()
+        above_or_below = admin_add_unit_match.group('above_or_below').strip()
+        row1Based = admin_add_unit_match.group('row1Based').strip()
+        print('unit add (sandbox mode={6}) from user {0}#{1}, for unit {2}, url {3}, position {4}, row {5}'.format(
+            from_name, from_discrim, unit_name, unit_url, above_or_below, row1Based, sandbox))
+        addUnitRow(from_id, unit_name, unit_url,
+                       above_or_below, row1Based, sandbox)
+        responseText = '<@{0}>: Added unit {1}!'.format(from_id, unit_name)
         return (responseText, None)
 
     if message.content.startswith('!resonance'):
