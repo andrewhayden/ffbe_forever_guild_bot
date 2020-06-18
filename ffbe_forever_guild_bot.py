@@ -14,13 +14,13 @@ from google.auth.transport.requests import Request
 # Configuration & Constants
 # -----------------------------------------------------------------------------
 # Where the main config file for the bot lives.
-CONFIG_FILE_PATH = "bot_config.json"
+CONFIG_FILE_PATH = 'bot_config.json'
 
 # Where the token is pickled to, after approving the bot for access to the Google account where the data is to be maintained.
-GOOGLE_TOKEN_PICKLE_PATH = "google_token.pickle"
+GOOGLE_TOKEN_PICKLE_PATH = 'google_token.pickle'
 
 # The path to the credentials for the bot, downloaded from the Google Developers Console.
-GOOGLE_CREDENTIALS_PATH = "google_credentials.json"
+GOOGLE_CREDENTIALS_PATH = 'google_credentials.json'
 
 # Scopes required for the bot to maintain data
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -44,7 +44,7 @@ DISCORD_BOT_TOKEN = None
 RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE = 'Low Priority: {0}/10'
 RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE = 'Medium Priority: {0}/10'
 RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE = 'High Priority: {0}/10'
-RESONANCE_MAX_VALUE = "10/10"
+RESONANCE_MAX_VALUE = '10/10'
 
 # -----------------------------------------------------------------------------
 # Command Regexes & Help
@@ -68,28 +68,28 @@ View your guild's Esper resonance data here: <https://docs.google.com/spreadshee
 '''
 
 # Pattern for getting your own resonance value
-RES_FETCH_SELF_PATTERN = re.compile("^!res(?:onance)? (.+)/(.+)$")
+RES_FETCH_SELF_PATTERN = re.compile(r'^!res(?:onance)? (.+)/(.+)$')
 
 # Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
-RES_LIST_SELF_PATTERN = re.compile("^!res(?:onance)? (?P<target_name>.+)$")
+RES_LIST_SELF_PATTERN = re.compile(r'^!res(?:onance)? (?P<target_name>.+)$')
 
 # Pattern for setting your own resonance value
 RES_SET_PATTERN = re.compile(
-    "^!res(?:onance)?-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>[^\/]+)(/\s*(?P<comment>[^\/]+))?)?$")
+    r'^!res(?:onance)?-set (?P<unit>.+)/(?P<esper>.+)\s+(?P<resonance_level>[0-9]+)\s*(/\s*(?P<priority>[^\/]+)(/\s*(?P<comment>[^\/]+))?)?$')
 
 # Pattern for getting someone else's resonance value
 RES_FETCH_OTHER_PATTERN = re.compile(
-    "^!res(?:onance)?-lookup (\S+) (.+)/(.+)$")
+    r'^!res(?:onance)?-lookup (\S+) (.+)/(.+)$')
 
 # (Hidden) Pattern for getting your own resonance value
-WHOIS_PATTERN = re.compile("^!whois (.+)$")
+WHOIS_PATTERN = re.compile(r'^!whois (.+)$')
 
 # (Admin only) Pattern for adding an Esper column.
 # Sandbox mode uses a different sheet, for testing.
 ADMIN_ADD_ESPER_PATTERN = re.compile(
-    "^!admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$")
+    r'^!admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$')
 SANDBOX_ADMIN_ADD_ESPER_PATTERN = re.compile(
-    "^!sandbox-admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$")
+    r'^!sandbox-admin-add-esper (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<left_or_right_of>.+)\|(?P<column>.+)$')
 
 # Maximum length of a Discord message. Messages longer than this need to be split up.
 # The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
@@ -160,7 +160,7 @@ def maybeSplitMessageNicely(message_text):
 
 def toA1(intValue):
     if (intValue > 26*26):
-        raise Exception("number too large")
+        raise Exception('number too large')
     if (intValue <= 26):
         return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[intValue - 1]
     bigPart = intValue // 26
@@ -182,7 +182,7 @@ def fromA1(a1Value):
 
 # Normalize a name, lowercasing it and replacing spaces with hyphens.
 def normalizeName(fancy_name):
-    return fancy_name.strip().lower().replace(" ", "-")
+    return fancy_name.strip().lower().replace(' ', '-')
 
 # Open the spreadsheet and return a tuple of the service object and the spreadsheets object.
 
@@ -209,7 +209,7 @@ def openSpreadsheets():
 
     service = build('sheets', 'v4', credentials=creds)
     spreadsheetApp = service.spreadsheets() # pylint: disable=no-member
-    return (service, spreadsheetApp)
+    return spreadsheetApp
 
 # Return the name of the tab to which the specified Discord snowflake/user ID is bound.
 # If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
@@ -237,7 +237,7 @@ def findAssociatedTab(spreadsheetApp, discord_user_id):
 
 # Return True if the specified discord user id has administrator permissions.
 def isAdmin(spreadsheetApp, discord_user_id):
-    # Discord IDs are in column A, the associated tab name is in column B, and if "Admin" is in column C, then it's an admin.
+    # Discord IDs are in column A, the associated tab name is in column B, and if 'Admin' is in column C, then it's an admin.
     range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:C'
     rows = None
     try:
@@ -319,7 +319,6 @@ def findUnitRow(spreadsheetApp, user_name, unit_name):
 # The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
 # If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
 def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, columnA1, sandbox):
-    inheritValue = None
     columnInteger = fromA1(columnA1)
     if left_or_right_of == 'left-of':
         inheritFromBefore = False  # Meaning, inherit from right
@@ -330,7 +329,7 @@ def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, col
         raise DiscordSafeException(
             'Incorrect parameter for position of new column, must be "left-of" or "right-of": ' + left_or_right_of)
 
-    service, spreadsheetApp = openSpreadsheets()
+    spreadsheetApp = openSpreadsheets()
     if not isAdmin(spreadsheetApp, discord_user_id):
         raise DiscordSafeException(
             'You do not have permission to add an esper.')
@@ -346,7 +345,6 @@ def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, col
     allRequests = []
     for sheet in spreadsheet['sheets']:
         sheetId = sheet['properties']['sheetId']
-        sheetTitle = sheet['properties']['title']
         # First create an 'insertDimension' request to add a blank column on each sheet.
         insertDimensionRequest = {
             'insertDimension': {
@@ -403,10 +401,8 @@ def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, col
 # same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
 # right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
 # and not the data of, e.g., another user who has their old nickname.
-
-
 def readResonance(user_name, discord_user_id, unit_name, esper_name):
-    service, spreadsheetApp = openSpreadsheets()
+    spreadsheetApp = openSpreadsheets()
     if (user_name is not None) and (discord_user_id is not None):
         print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
         raise DiscordSafeException('Internal error')
@@ -429,9 +425,7 @@ def readResonance(user_name, discord_user_id, unit_name, esper_name):
         raise DiscordSafeException('{0} is not tracking any resonance for esper {1} on unit {2}'.format(
             user_name, pretty_esper_name, pretty_unit_name))
 
-    for row in final_rows:
-        for value in final_rows:
-            return value[0], pretty_unit_name, pretty_esper_name
+    return final_rows[0][0][0], pretty_unit_name, pretty_esper_name
 
 
 # Read and return the pretty name of the query subject (either a unit or an esper), along with a list of resonances
@@ -441,7 +435,7 @@ def readResonance(user_name, discord_user_id, unit_name, esper_name):
 # right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
 # and not the data of, e.g., another user who has their old nickname.
 def readResonanceList(user_name, discord_user_id, query_string):
-    service, spreadsheetApp = openSpreadsheets()
+    spreadsheetApp = openSpreadsheets()
     if (user_name is not None) and (discord_user_id is not None):
         print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
         raise DiscordSafeException('Internal error')
@@ -529,7 +523,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
         raise DiscordSafeException(
             'Resonance must be a value in the range 0 - 10')
 
-    service, spreadsheetApp = openSpreadsheets()
+    spreadsheetApp = openSpreadsheets()
     user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
 
     esper_column_A1, pretty_esper_name = findEsperColumn(
@@ -557,9 +551,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     final_rows = result.get('values', [])
     old_value_string = '(not set)'
     if final_rows:
-        for row in final_rows:
-            for value in final_rows:
-                old_value_string = value[0]
+        old_value_string = final_rows[0][0]
 
     # Now that we have the old value, try to update the new value.
     # If priority is blank, leave the level (high/medium/low) alone.
