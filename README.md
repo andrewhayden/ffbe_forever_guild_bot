@@ -60,3 +60,21 @@ This spreadsheet gates write access to writes, ensuring that a user can only mod
 At runtime, any attempt to perform a write operation is indirected through the access control spreadsheet. The originating discord user's snowflake ID is grabbed directly from the Discord server and used to look up the corresponding alias in the access control spreadsheet. That alias is then used to identify the name of the tab in the Esper Resonance (etc) spreadsheet, to which the discord user has permission to write. When a new member wants access, you need to grant it by adding their snowflake ID to the access control list and assign them an alias. To make them an admin, add "admin" in the third column.
 
 For reads, a similar process is performed but it is non-authoritative, because reads are assumed to be safe for everyone. There is no *private* data in the spreadsheets, and the write-control is only implemented to prevent griefing.
+
+
+## Extra Credit: OCR
+There is experimental support for extracting data from screenshots. The initial support is for vision cards only, and just tries to extract the text from a file (when run standalone)
+or from an image attachment (if uploaded to the channel). To make this work, you need to do some extra steps.
+Install Google's OCR library, [tesseract-ocr](https://github.com/tesseract-ocr/tesseract), and the [pytesseract](https://pypi.org/project/pytesseract/) library for interacting with it. We'll also need [OpenCV](https://pypi.org/project/opencv-python/) and [NumPy](https://numpy.org/) amd imutils.
+
+* sudo apt install tesseract-ocr
+* (If you haven't already entered the bot environment) source bot-env/bin/activate
+* pip install pytesseract
+* (this may install numpy automatically) pip install opencv-python
+* pip install numpy
+* pip install imutils
+
+You'll also want to run:
+* pylint --generate-rcfile > .pylintrc
+... and then modify the top line to read as follows:
+* extension-pkg-whitelist=cv2

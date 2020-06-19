@@ -6,6 +6,7 @@ import pprint  # for pretty-printing JSON during debugging, etc
 import json
 import os.path
 import re
+from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -61,6 +62,9 @@ HELP = '''`!resonance unit-name/esper-name`
 `!resonance-lookup discord-nickname unit-name/esper-name`
 > Get **someone else's** resonance for the named unit and esper. Unlike !resonance and !resonance-set, the discord-nickname here is not resolved against the user's snowflake ID. Put another way, it's just the name of the tab in the spreadsheet. This can access data of a former guild members, if your guild leader hasn't deleted it. Example: *!resonance-lookup JohnDoe mont/cactuar*
 
+`!x-vision-card-ocr`
+> EXPERIMENTAL (might break!): Send this message with no other text, and attach a screenshot of a vision card. The bot will attempt to extract the stats from the vision card image.
+
 **Shorthand Support**
 You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, a case-insensitive prefix match is used.
 
@@ -97,6 +101,9 @@ ADMIN_ADD_UNIT_PATTERN = re.compile(
     r'^!admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
 SANDBOX_ADMIN_ADD_UNIT_PATTERN = re.compile(
     r'^!sandbox-admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
+
+# Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
+EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!x-vision-card-ocr$')
 
 # Maximum length of a Discord message. Messages longer than this need to be split up.
 # The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
@@ -725,6 +732,17 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
 
 # Generate a safe response for a message from discord, or None if no response is needed.
 
+def prettyPrintVisionCardOcrText(structured):
+    result = 'Stats:\n'
+    result += '  HP: ' + str(structured['HP']) + '\n'
+    result += '  ATK: ' + str(structured['ATK']) + '\n'
+    result += '  MAG: ' + str(structured['MAG']) + '\n'
+    result += 'Bestowed Effects:\n'
+    for effect in structured['Bestowed Effects']:
+        result += '  ' + effect + '\n'
+    result += 'Party Ability:\n'
+    result += '  ' + structured['Party Ability']
+    return result
 
 def getDiscordSafeResponse(message):
     if message.author == discord_client.user:
@@ -870,6 +888,16 @@ def getDiscordSafeResponse(message):
     if message.content.lower().startswith('!resonance'):
         responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(
             from_id)
+        return (responseText, None)
+
+    match = EXPERIMENTAL_VISION_CARD_OCR_PATTERN.match(message.content.lower())
+    if match:
+        # Try to extract text from a vision card screenshot that is sent as an attachment to this message.
+        url = message.attachments[0].url
+        print('vision card ocr request from user %s#%s, for url %s' % (from_name, from_discrim, url))
+        screenshot = downloadScreenshotFromUrl(url)
+        extractedText = extractNiceTextFromVisionCard(screenshot)
+        responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(extractedText))
         return (responseText, None)
 
     if message.content.lower().startswith('!help'):
