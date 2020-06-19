@@ -62,7 +62,7 @@ HELP = '''`!resonance unit-name/esper-name`
 `!resonance-lookup discord-nickname unit-name/esper-name`
 > Get **someone else's** resonance for the named unit and esper. Unlike !resonance and !resonance-set, the discord-nickname here is not resolved against the user's snowflake ID. Put another way, it's just the name of the tab in the spreadsheet. This can access data of a former guild members, if your guild leader hasn't deleted it. Example: *!resonance-lookup JohnDoe mont/cactuar*
 
-`!x-vision-card-ocr`
+`!xocr`
 > EXPERIMENTAL (might break!): Send this message with no other text, and attach a screenshot of a vision card. The bot will attempt to extract the stats from the vision card image.
 
 **Shorthand Support**
@@ -103,7 +103,7 @@ SANDBOX_ADMIN_ADD_UNIT_PATTERN = re.compile(
     r'^!sandbox-admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
 
 # Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
-EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!x-vision-card-ocr$')
+EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!xocr$')
 
 # Maximum length of a Discord message. Messages longer than this need to be split up.
 # The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
