@@ -41,6 +41,10 @@ USERS_TAB_NAME = 'Users'
 # The token of the Discord bot, needed to log into Discord.
 DISCORD_BOT_TOKEN = None
 
+# Maximum length of a Discord message. Messages longer than this need to be split up.
+# The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
+DISCORD_MESSAGE_LENGTH_LIMIT = 1000
+
 # Templates for the various resonance quantities. These match validation rules in the spreadsheet.
 RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE = 'Low Priority: {0}/10'
 RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE = 'Medium Priority: {0}/10'
@@ -68,6 +72,8 @@ HELP = '''`!resonance unit-name/esper-name`
 **Shorthand Support**
 You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, a case-insensitive prefix match is used.
 
+You can also abbreviate "resonance" as just "res" in all the resonance commands.
+
 View your guild's Esper resonance data here: <https://docs.google.com/spreadsheets/d/{0}>
 '''
 
@@ -85,8 +91,27 @@ RES_SET_PATTERN = re.compile(
 RES_FETCH_OTHER_PATTERN = re.compile(
     r'^!res(?:onance)?-lookup (\S+) (.+)/(.+)$')
 
-# (Hidden) Pattern for getting your own resonance value
+# Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
+EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!xocr$')
+
+# (Hidden) Pattern for getting your own user ID out of Discord
 WHOIS_PATTERN = re.compile(r'^!whois (.+)$')
+
+ADMIN_HELP='''
+**NOTE**
+Due to discord formatting of URLs, in the commands below, the "https://" prefix is displayed as "XX:". This is to prevent Discord from mangling the examples and converting the pipe-delimiters of the commands into URL parameters. where you see "XX:" in a command, you should type "https://" as you normally would to start a URL.
+
+!admin-add-esper name|url|[left-of|right-of]|column-identifier
+Add an esper having the specified name and informational URL either left-of or right-of the specified column (whose style will be copied; use this to copy the UR/MR/SR/R/N style as appropriate for the esper). Pipes are used as delimiters in order to accommodate spaces and special characters in names and URLs. The column should be in 'A1' notation, e.g. 'AA' for the 27th column. Example: !admin-add-esper Death Machine|XX:wotv-calc.com/esper/death-machine|left-of|C
+
+!admin-add-unit name|url|[above|below]|row-identifier
+Add a unit having the specified name and informational URL either above or below the specified row (whose style will be copied; use this to copy the UR/MR/SR/R/N style as appropriate for the unit). Pipes are used as delimiters in order to accommodate spaces and special characters in names and URLs. The row should be the literal row number from the spreadsheet, i.e. it is 1-based (not 0-based). Example: !admin-add-unit Rain|XX:wotv-calc.com/unit/rain|above|16
+
+**Admin Notes**
+Prefix any admin command with "sandbox-" to perform the operations on the configured sandbox instead of the true resource. Once you're certain you have the command correct, just remove the "sandbox-" prefix to write to the true resource (e.g., the esper resonance spreadsheet for the guild).
+
+The guild's configured Esper Resonance spreadsheet is at <https://docs.google.com/spreadsheets/d/{0}> and its sandbox is at <https://docs.google.com/spreadsheets/d/{1}>.
+'''
 
 # (Admin only) Pattern for adding an Esper column.
 # Sandbox mode uses a different sheet, for testing.
@@ -101,13 +126,6 @@ ADMIN_ADD_UNIT_PATTERN = re.compile(
     r'^!admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
 SANDBOX_ADMIN_ADD_UNIT_PATTERN = re.compile(
     r'^!sandbox-admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
-
-# Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
-EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!xocr$')
-
-# Maximum length of a Discord message. Messages longer than this need to be split up.
-# The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
-DISCORD_MESSAGE_LENGTH_LIMIT = 1000
 
 
 class DiscordSafeException(Exception):
@@ -904,7 +922,11 @@ def getDiscordSafeResponse(message):
         responseText = HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
         return (responseText, None)
 
-    return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands. Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
+    if message.content.lower().startswith('!admin-help'):
+        responseText = ADMIN_HELP.format(ESPER_RESONANCE_SPREADSHEET_ID,SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID)
+        return (responseText, None)
+
+    return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
 
 
 if __name__ == "__main__":

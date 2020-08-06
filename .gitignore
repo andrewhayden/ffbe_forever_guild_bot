@@ -4,3 +4,4 @@ google_credentials.json
 google_token.pickle
 credentials.json:Zone.Identifier
 discord.log
+__pycache__
