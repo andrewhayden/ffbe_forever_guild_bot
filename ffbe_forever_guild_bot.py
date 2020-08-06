@@ -127,6 +127,15 @@ ADMIN_ADD_UNIT_PATTERN = re.compile(
 SANDBOX_ADMIN_ADD_UNIT_PATTERN = re.compile(
     r'^!sandbox-admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
 
+# Ignore any lines that start with a "!" followed by any non-letter character, since these are definitely not bot commands.
+# This prevents people's various exclamations like "!!!!!" from being acknolwedged by the bot.
+IGNORE_PATTERN_1 = re.compile(r'^![^a-zA-Z]')
+
+# Similarly, ignore the raw "!" message. Separate from the pattern above for regex sanity.
+IGNORE_PATTERN_2 = re.compile(r'^!$')
+
+# List of all ignore patterns, to iterate over.
+ALL_IGNORE_PATTERNS = [IGNORE_PATTERN_1, IGNORE_PATTERN_2]
 
 class DiscordSafeException(Exception):
     """An exception whose error text is safe to show in Discord.
@@ -771,6 +780,10 @@ def getDiscordSafeResponse(message):
 
     if not message.content.startswith('!'):
         return (None, None)
+
+    for ignore_pattern in ALL_IGNORE_PATTERNS:
+        if ignore_pattern.match(message.content):
+            return (None, None)
 
     from_name = message.author.display_name
     from_id = message.author.id
