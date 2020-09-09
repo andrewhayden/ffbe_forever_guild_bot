@@ -95,7 +95,7 @@ RES_FETCH_OTHER_PATTERN = re.compile(
 EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!xocr$')
 
 # (Hidden) Pattern for getting your own user ID out of Discord
-WHOIS_PATTERN = re.compile(r'^!whois (.+)$')
+WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')
 
 ADMIN_HELP='''
 **NOTE**
@@ -860,11 +860,13 @@ def getDiscordSafeResponse(message):
     # but it's also not common, so it isn't listed in help.
     match = WHOIS_PATTERN.match(message.content.lower())
     if match:
-        target_member_name = match.group(1).strip()
+        match = WHOIS_PATTERN.match(message.content) # Fetch original-case name
+        target_member_name = match.group('server_handle').strip()
         members = message.guild.members
         for member in members:
             if (member.name == target_member_name):
-                return '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
+                responseText = '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
+                return (responseText, None)
         responseText = '<@{0}>: no such member {1}'.format(
             from_id, target_member_name)
         return (responseText, None)
