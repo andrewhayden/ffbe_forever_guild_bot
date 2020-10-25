@@ -69,8 +69,12 @@ HELP = '''`!resonance unit-name/esper-name`
 `!xocr`
 > EXPERIMENTAL (might break!): Send this message with no other text, and attach a screenshot of a vision card. The bot will attempt to extract the stats from the vision card image.
 
-**Shorthand Support**
-You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, a case-insensitive prefix match is used.
+**Names of Espers and Units**
+You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, here's how searching works:
+1. If you enclose the name of the unit or esper in double quotes, only an EXACT MATCH will be performed. This is handy to force the correct unit when dealing with some unique situations like "Little Leela" and "Little Leela (Halloween)"
+2. Otherwise, if there's only one possible unit name or esper name that STARTS WITH the shorthand, that's enough. For example, there's only one unit whose name starts with "Lass" (Lasswell), so you can just type "Lass" (without the quotes).
+3. Otherwise, if there's only one possible unit name or esper name that HAS ALL THE WORDS YOU ENTERED, that's enough. For example, there's only one unit whose name contains both "Lee" and "Hallow", it's "Little Leela (Halloween)". So this is enough to identify her.
+4. Otherwise, an error will be returned - either because (1) there was no exact match or, in the case of (2) and (3) above there were multiple possible matches and you need to be more specific.
 
 You can also abbreviate "resonance" as just "res" in all the resonance commands.
 
@@ -301,6 +305,11 @@ def isAdmin(spreadsheetApp, discord_user_id):
 
 # Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
+# Search works as follows:
+# 1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
+# 2. Else, if there is exactly one esper whose case-insensitive name starts with the specified search_text, it is returned.
+# 3. Else, if there is exactly one esper whose case-insensitive name contains all of the words in the specified search_text, it is returned.
+# 4. Else, an exception is raised.
 def findEsperColumn(spreadsheetApp, user_name, search_text):
     # Read the esper names row. Esper names are on row 2.
     range_name = safeWorksheetName(user_name) + '!2:2'
@@ -335,15 +344,15 @@ def findEsperColumn(spreadsheetApp, user_name, search_text):
             if (fuzzyMatches(pretty_name, search_text)):
                 esper_column_A1 = toA1(column_count)
                 fuzzy_matches.append((esper_column_A1, pretty_name))
-    if len(fuzzy_matches) == 0 and len(prefix_matches) == 0:
+    if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
         raise DiscordSafeException(
-            'No esper matching text "{0}" is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
+            'No esper matching text ```{0}``` is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
     if len(prefix_matches) == 1: # Prefer prefix match.
         return prefix_matches[0]
     if len(fuzzy_matches) == 1: # Fall back to fuzzy match
         return fuzzy_matches[0]
     raise DiscordSafeException(
-            'Multiple espers matched the text "{0}". Please make your text more specific and try again.'.format(search_text))
+            'Multiple espers matched the text ```{0}```. Please make your text more specific and try again.'.format(search_text))
 
 # Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
 # resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
@@ -357,6 +366,11 @@ def fuzzyMatches(sheet_text, search_text):
 
 # Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
 # If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
+# Search works as follows:
+# 1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
+# 2. Else, if there is exactly one unit whose case-insensitive name starts with the specified search_text, it is returned.
+# 3. Else, if there is exactly one unit whose case-insensitive name contains all of the words in the specified search_text, it is returned.
+# 4. Else, an exception is raised.
 def findUnitRow(spreadsheetApp, user_name, search_text):
     # Unit names are on column B.
     range_name = safeWorksheetName(user_name) + '!B:B'
@@ -387,15 +401,15 @@ def findUnitRow(spreadsheetApp, user_name, search_text):
                 prefix_matches.append((row_count, pretty_name))
             if (fuzzyMatches(pretty_name, search_text)):
                 fuzzy_matches.append((row_count, pretty_name))
-    if len(fuzzy_matches) == 0 and len(prefix_matches) == 0:
+    if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
         raise DiscordSafeException(
-            'No unit matching text "{0}" is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
+            'No unit matching text ```{0}``` is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
     if len(prefix_matches) == 1: # Prefer prefix match.
         return prefix_matches[0]
     if len(fuzzy_matches) == 1: # Fall back to fuzzy match
         return fuzzy_matches[0]
     raise DiscordSafeException(
-            'Multiple units matched the text "{0}". Please make your text more specific and try again.'.format(search_text))
+            'Multiple units matched the text ```{0}```. Please make your text more specific and try again.'.format(search_text))
 
 
 # Add a new column for an esper.
