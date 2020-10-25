@@ -96,6 +96,7 @@ def extractStat(rawStatString):
 
 def extractNiceTextFromVisionCard(image):
     raw = extractRawTextFromVisionCard(image)
+    print('raw text from card:' + raw)
     AT_START = 0
     IN_BESTOWED_EFFECTS = 1
     IN_PARTY_ABILITY = 2

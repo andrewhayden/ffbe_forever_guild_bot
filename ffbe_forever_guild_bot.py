@@ -328,14 +328,23 @@ def findEsperColumn(spreadsheetApp, user_name, esper_name):
     raise DiscordSafeException(
         'No such esper {0} is being tracked by user {1}, perhaps they do not have it yet.'.format(esper_name, user_name))
 
+# Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
+# resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
+# match and the method returns True; otherwise, returns False.
+def fuzzyMatches(sheet_text, search_text):
+    words = search_text.split() # by default splits on all whitespace PRESERVING punctuation, which is important...
+    for word in words:
+        if not (word.lower() in sheet_text.lower()):
+            return False
+    return True
 
 # Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
 # If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findUnitRow(spreadsheetApp, user_name, unit_name):
+def findUnitRow(spreadsheetApp, user_name, search_text):
     # Unit names are on column B.
     range_name = safeWorksheetName(user_name) + '!B:B'
     unit_name_rows = None
-    unit_name = normalizeName(unit_name)
+    unit_name = normalizeName(search_text)
     try:
         values = spreadsheetApp.values().get(
             spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
@@ -346,14 +355,30 @@ def findUnitRow(spreadsheetApp, user_name, unit_name):
         raise DiscordSafeException(
             'Esper resonance tracking info not found for user {0}'.format(user_name))
 
+    fuzzy_matches = []
+    prefix_matches = []
     row_count = 0
+    exact_match_string = None
+    if search_text.startswith('"') and search_text.endswith('"'):
+        exact_match_string = (search_text[1:-1])
     for unit_name_row in unit_name_rows:
         row_count += 1
         for pretty_name in unit_name_row:
-            if normalizeName(pretty_name).startswith(unit_name):
+            if exact_match_string and (pretty_name.lower() == exact_match_string.lower()):
                 return (row_count, pretty_name)
+            if normalizeName(pretty_name).startswith(unit_name):
+                prefix_matches.append((row_count, pretty_name))
+            if (fuzzyMatches(pretty_name, search_text)):
+                fuzzy_matches.append((row_count, pretty_name))
+    if len(fuzzy_matches) == 0 and len(prefix_matches) == 0:
+        raise DiscordSafeException(
+            'No unit matching text "{0}" is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
+    if len(prefix_matches) == 1: # Prefer prefix match.
+        return prefix_matches[0]
+    if len(fuzzy_matches) == 1: # Fall back to fuzzy match
+        return fuzzy_matches[0]
     raise DiscordSafeException(
-        'No such unit {0} is being tracked by user {1}, perhaps they do not have it yet.'.format(unit_name, user_name))
+            'Multiple units matched the text "{0}". Please make your text more specific and try again.')
 
 
 # Add a new column for an esper.
