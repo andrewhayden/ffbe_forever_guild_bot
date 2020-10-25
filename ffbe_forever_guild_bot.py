@@ -651,28 +651,32 @@ def readResonanceList(user_name, discord_user_id, query_string):
     target_name = None
 
     # First try to look up a unit whose name matches.
+    unit_lookup_exception_message = None
     try:
         unit_row_index, pretty_unit_name = findUnitRow(
             spreadsheetApp, user_name, query_string)
         mode = 'for unit'
         target_name = pretty_unit_name
-    except:
+    except DiscordSafeException as ex:
+        unit_lookup_exception_message = ex.message
         pass
 
     # Try an esper lookup instead
+    esper_lookup_exception_message = None
     if mode is None:
         try:
             esper_column_A1, pretty_esper_name = findEsperColumn(
                 spreadsheetApp, user_name, query_string)
             mode = 'for esper'
             target_name = pretty_esper_name
-        except:
+        except DiscordSafeException as ex:
+            esper_lookup_exception_message = ex.message
             pass
 
     # If neither esper or unit is found, fail now.
     if mode is None:
         raise DiscordSafeException(
-            'No esper or unit found whose name starts with "{0}", please check the spelling and try again.'.format(query_string))
+            'Unable to find a singular match for: ```{0}```\nUnit lookup results: {1}\nEsper lookup results: {2}'.format(query_string, unit_lookup_exception_message, esper_lookup_exception_message))
 
     # Grab all the data in one call, so we can read everything at once and have atomicity guarantees.
     result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID,
