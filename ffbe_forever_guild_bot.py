@@ -351,8 +351,18 @@ def findEsperColumn(spreadsheetApp, user_name, search_text):
         return prefix_matches[0]
     if len(fuzzy_matches) == 1: # Fall back to fuzzy match
         return fuzzy_matches[0]
+    all_matches = set()
+    all_matches.update(prefix_matches)
+    all_matches.update(fuzzy_matches)
+    all_matches_string = ""
+    all_matches = list(all_matches)
+    max_results = min(5, len(all_matches))
+    for index in range(0, max_results):
+        all_matches_string += all_matches[index][1]
+        if (index < max_results - 1):
+            all_matches_string += ", "
     raise DiscordSafeException(
-            'Multiple espers matched the text ```{0}```. Please make your text more specific and try again.'.format(search_text))
+            'Multiple espers matched the text: ```{0}``` Please make your text more specific and try again. Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
 # Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
 # resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
@@ -408,8 +418,18 @@ def findUnitRow(spreadsheetApp, user_name, search_text):
         return prefix_matches[0]
     if len(fuzzy_matches) == 1: # Fall back to fuzzy match
         return fuzzy_matches[0]
+    all_matches = set()
+    all_matches.update(prefix_matches)
+    all_matches.update(fuzzy_matches)
+    all_matches_string = ""
+    all_matches = list(all_matches)
+    max_results = min(5, len(all_matches))
+    for index in range(0, max_results):
+        all_matches_string += all_matches[index][1]
+        if (index < max_results - 1):
+            all_matches_string += ", "
     raise DiscordSafeException(
-            'Multiple units matched the text ```{0}```. Please make your text more specific and try again.'.format(search_text))
+            'Multiple units matched the text: ```{0}``` Please make your text more specific and try again. Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
 
 # Add a new column for an esper.
