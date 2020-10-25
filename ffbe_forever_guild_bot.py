@@ -301,11 +301,11 @@ def isAdmin(spreadsheetApp, discord_user_id):
 
 # Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
 # If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-def findEsperColumn(spreadsheetApp, user_name, esper_name):
+def findEsperColumn(spreadsheetApp, user_name, search_text):
     # Read the esper names row. Esper names are on row 2.
     range_name = safeWorksheetName(user_name) + '!2:2'
     esper_name_rows = None
-    esper_name = normalizeName(esper_name)
+    esper_name = normalizeName(search_text)
     try:
         values = spreadsheetApp.values().get(
             spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
@@ -317,16 +317,33 @@ def findEsperColumn(spreadsheetApp, user_name, esper_name):
             'Esper resonance tracking info not found for user {0}'.format(user_name))
 
     # Search for a match and return when found.
+    fuzzy_matches = []
+    prefix_matches = []
+    exact_match_string = None
+    if search_text.startswith('"') and search_text.endswith('"'):
+        exact_match_string = (search_text[1:-1])
     for esper_name_row in esper_name_rows:
         column_count = 0
         for pretty_name in esper_name_row:
             column_count += 1
-            if normalizeName(pretty_name).startswith(esper_name):
+            if exact_match_string and (pretty_name.lower() == exact_match_string.lower()):
                 esper_column_A1 = toA1(column_count)
                 return (esper_column_A1, pretty_name)
-
+            if normalizeName(pretty_name).startswith(esper_name):
+                esper_column_A1 = toA1(column_count)
+                prefix_matches.append((esper_column_A1, pretty_name))
+            if (fuzzyMatches(pretty_name, search_text)):
+                esper_column_A1 = toA1(column_count)
+                fuzzy_matches.append((esper_column_A1, pretty_name))
+    if len(fuzzy_matches) == 0 and len(prefix_matches) == 0:
+        raise DiscordSafeException(
+            'No esper matching text "{0}" is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
+    if len(prefix_matches) == 1: # Prefer prefix match.
+        return prefix_matches[0]
+    if len(fuzzy_matches) == 1: # Fall back to fuzzy match
+        return fuzzy_matches[0]
     raise DiscordSafeException(
-        'No such esper {0} is being tracked by user {1}, perhaps they do not have it yet.'.format(esper_name, user_name))
+            'Multiple espers matched the text "{0}". Please make your text more specific and try again.'.format(search_text))
 
 # Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
 # resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
@@ -378,7 +395,7 @@ def findUnitRow(spreadsheetApp, user_name, search_text):
     if len(fuzzy_matches) == 1: # Fall back to fuzzy match
         return fuzzy_matches[0]
     raise DiscordSafeException(
-            'Multiple units matched the text "{0}". Please make your text more specific and try again.')
+            'Multiple units matched the text "{0}". Please make your text more specific and try again.'.format(search_text))
 
 
 # Add a new column for an esper.
