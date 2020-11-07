@@ -1,15 +1,16 @@
 from __future__ import print_function
-import discord
 import logging
 import pickle
+# pylint: disable=unused-import
 import pprint  # for pretty-printing JSON during debugging, etc
 import json
 import os.path
 import re
-from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
+import discord
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
 
 # -----------------------------------------------------------------------------
 # Configuration & Constants
@@ -101,7 +102,7 @@ EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!xocr$')
 # (Hidden) Pattern for getting your own user ID out of Discord
 WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')
 
-ADMIN_HELP='''
+ADMIN_HELP = '''
 **NOTE**
 Due to discord formatting of URLs, in the commands below, the "https://" prefix is displayed as "XX:". This is to prevent Discord from mangling the examples and converting the pipe-delimiters of the commands into URL parameters. where you see "XX:" in a command, you should type "https://" as you normally would to start a URL.
 
@@ -148,11 +149,13 @@ class DiscordSafeException(Exception):
     """
 
     def __init__(self, message):
+        super(DiscordSafeException, self).__init__(message)
         self.message = message
 
 
-# Reads the configuration file and bootstraps the application. Call this first.
 def readConfig():
+    """Reads the configuration file and bootstraps the application. Call this first."""
+    # pylint: disable=global-statement
     global ACCESS_CONTROL_SPREADSHEET_ID
     global ESPER_RESONANCE_SPREADSHEET_ID
     global SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
@@ -172,16 +175,19 @@ def readConfig():
 
 
 def safeWorksheetName(sheet_name):
+    """Ensures that the name of a worksheet is safe to use."""
     if "'" in sheet_name:
         raise DiscordSafeException('Names must not contain apostrophes.')
     return "'" + sheet_name + "'"
 
 
-# If the given message is longer than DISCORD_MESSAGE_LENGTH_LIMIT, splits the message into as many
-# chunks as necessary in order to stay under the limit for each message. Tries to respect newlines.
-# If a line is too long, this method will fail.
-# Returns a list of message fragments, all under DISCORD_MESSAGE_LENGTH_LIMIT in size.
 def maybeSplitMessageNicely(message_text):
+    """Returns a list of message fragments, all under DISCORD_MESSAGE_LENGTH_LIMIT in size.
+
+    If the given message is longer than DISCORD_MESSAGE_LENGTH_LIMIT, splits the message into as many
+    chunks as necessary in order to stay under the limit for each message. Tries to respect newlines.
+    If a line is too long, this method will fail.
+    """
     if len(message_text) < DISCORD_MESSAGE_LENGTH_LIMIT:
         return [message_text]
     result = []
@@ -189,7 +195,7 @@ def maybeSplitMessageNicely(message_text):
     lines = message_text.splitlines(keepends=True)
     for line in lines:
         if len(line) > DISCORD_MESSAGE_LENGTH_LIMIT:
-            # TODO: Support splitting on words?
+            # There's a line with a single word too long to fit. Abort.
             raise DiscordSafeException('response too long')
         if (len(buffer) + len(line)) < DISCORD_MESSAGE_LENGTH_LIMIT:
             buffer += line
@@ -200,13 +206,12 @@ def maybeSplitMessageNicely(message_text):
         result.append(buffer)
     return result
 
-# Convert an integer value to "A1 Notation", i.e. the column name in a spreadsheet. Max value 26*26.
-
 
 def toA1(intValue):
-    if (intValue > 26*26):
+    """Convert an integer value to "A1 Notation", i.e. the column name in a spreadsheet. Max value 26*26."""
+    if intValue > 26*26:
         raise Exception('number too large')
-    if (intValue <= 26):
+    if intValue <= 26:
         return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[intValue - 1]
     bigPart = intValue // 26
     remainder = intValue - (bigPart * 26)
@@ -214,6 +219,7 @@ def toA1(intValue):
 
 
 def fromA1(a1Value):
+    """Convert a value in "A1 Notation", i.e. the column name in a spreadsheet, to a 1-based integer offset."""
     numChars = len(a1Value)
     if numChars > 2:
         raise DiscordSafeException('number too large: ' + a1Value)
@@ -225,14 +231,12 @@ def fromA1(a1Value):
     return result
 
 
-# Normalize a name, lowercasing it and replacing spaces with hyphens.
 def normalizeName(fancy_name):
+    """Normalize a name, lowercasing it and replacing spaces with hyphens."""
     return fancy_name.strip().lower().replace(' ', '-')
 
-# Open the spreadsheet and return a tuple of the service object and the spreadsheets object.
-
-
 def openSpreadsheets():
+    """Open the spreadsheet and return a tuple of the service object and the spreadsheets object."""
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -256,11 +260,12 @@ def openSpreadsheets():
     spreadsheetApp = service.spreadsheets() # pylint: disable=no-member
     return spreadsheetApp
 
-# Return the name of the tab to which the specified Discord snowflake/user ID is bound.
-# If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-
 
 def findAssociatedTab(spreadsheetApp, discord_user_id):
+    """Return the name of the tab to which the specified Discord snowflake/user ID is bound.
+
+    If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
+    """
     # Discord IDs are in column A, the associated tab name is in column B
     range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:B'
     rows = None
@@ -274,14 +279,14 @@ def findAssociatedTab(spreadsheetApp, discord_user_id):
         raise DiscordSafeException('Spreadsheet misconfigured')
 
     for row in rows:
-        if (str(row[0]) == str(discord_user_id)):
+        if str(row[0]) == str(discord_user_id):
             return row[1]
     raise DiscordSafeException(
         'User with ID {0} is not configured, or is not allowed to access this data. Ask your guild administrator for assistance.'.format(discord_user_id))
 
 
-# Return True if the specified discord user id has administrator permissions.
 def isAdmin(spreadsheetApp, discord_user_id):
+    """Return True if the specified discord user id has administrator permissions."""
     # Discord IDs are in column A, the associated tab name is in column B, and if 'Admin' is in column C, then it's an admin.
     range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:C'
     rows = None
@@ -295,7 +300,7 @@ def isAdmin(spreadsheetApp, discord_user_id):
         raise DiscordSafeException('Spreadsheet misconfigured')
 
     for row in rows:
-        if (str(row[0]) == str(discord_user_id)):
+        if str(row[0]) == str(discord_user_id):
             result = (len(row) > 2 and row[2] and row[2].lower() == 'admin')
             print('Admin check for discord user {0}: {1}'.format(
                 discord_user_id, result))
@@ -303,14 +308,16 @@ def isAdmin(spreadsheetApp, discord_user_id):
     return False
 
 
-# Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
-# If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-# Search works as follows:
-# 1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
-# 2. Else, if there is exactly one esper whose case-insensitive name starts with the specified search_text, it is returned.
-# 3. Else, if there is exactly one esper whose case-insensitive name contains all of the words in the specified search_text, it is returned.
-# 4. Else, an exception is raised.
 def findEsperColumn(spreadsheetApp, user_name, search_text):
+    """ Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
+
+    If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
+    Search works as follows:
+    1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
+    2. Else, if there is exactly one esper whose case-insensitive name starts with the specified search_text, it is returned.
+    3. Else, if there is exactly one esper whose case-insensitive name contains all of the words in the specified search_text, it is returned.
+    4. Else, an exception is raised.
+    """
     # Read the esper names row. Esper names are on row 2.
     range_name = safeWorksheetName(user_name) + '!2:2'
     esper_name_rows = None
@@ -341,7 +348,7 @@ def findEsperColumn(spreadsheetApp, user_name, search_text):
             if normalizeName(pretty_name).startswith(esper_name):
                 esper_column_A1 = toA1(column_count)
                 prefix_matches.append((esper_column_A1, pretty_name))
-            if (fuzzyMatches(pretty_name, search_text)):
+            if fuzzyMatches(pretty_name, search_text):
                 esper_column_A1 = toA1(column_count)
                 fuzzy_matches.append((esper_column_A1, pretty_name))
     if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
@@ -359,29 +366,39 @@ def findEsperColumn(spreadsheetApp, user_name, search_text):
     max_results = min(5, len(all_matches))
     for index in range(0, max_results):
         all_matches_string += all_matches[index][1]
-        if (index < max_results - 1):
+        if index < max_results - 1:
             all_matches_string += ", "
     raise DiscordSafeException(
-            'Multiple espers matched the text: ```{0}``` Please make your text more specific and try again. For an exact match, enclose your text in double quotes. Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
+        'Multiple espers matched the text: ```{0}``` Please make your text more specific and try again. '\
+        'For an exact match, enclose your text in double quotes. '\
+        'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
-# Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
-# resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
-# match and the method returns True; otherwise, returns False.
+
 def fuzzyMatches(sheet_text, search_text):
+    """Performs a fuzzy match within the specified text.
+
+    Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
+    resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
+    match and the method returns True; otherwise, returns False.
+    """
     words = search_text.split() # by default splits on all whitespace PRESERVING punctuation, which is important...
     for word in words:
-        if not (word.lower() in sheet_text.lower()):
+        if not word.lower() in sheet_text.lower():
             return False
     return True
 
-# Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
-# If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-# Search works as follows:
-# 1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
-# 2. Else, if there is exactly one unit whose case-insensitive name starts with the specified search_text, it is returned.
-# 3. Else, if there is exactly one unit whose case-insensitive name contains all of the words in the specified search_text, it is returned.
-# 4. Else, an exception is raised.
+
 def findUnitRow(spreadsheetApp, user_name, search_text):
+    """Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
+
+    If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
+    Search works as follows:
+    1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
+    2. Else, if there is exactly one unit whose case-insensitive name starts with the specified search_text, it is returned.
+    3. Else, if there is exactly one unit whose case-insensitive name contains all of the words in the specified search_text, it is returned.
+    4. Else, an exception is raised.
+    """
+
     # Unit names are on column B.
     range_name = safeWorksheetName(user_name) + '!B:B'
     unit_name_rows = None
@@ -409,7 +426,7 @@ def findUnitRow(spreadsheetApp, user_name, search_text):
                 return (row_count, pretty_name)
             if normalizeName(pretty_name).startswith(unit_name):
                 prefix_matches.append((row_count, pretty_name))
-            if (fuzzyMatches(pretty_name, search_text)):
+            if fuzzyMatches(pretty_name, search_text):
                 fuzzy_matches.append((row_count, pretty_name))
     if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
         raise DiscordSafeException(
@@ -426,16 +443,20 @@ def findUnitRow(spreadsheetApp, user_name, search_text):
     max_results = min(5, len(all_matches))
     for index in range(0, max_results):
         all_matches_string += all_matches[index][1]
-        if (index < max_results - 1):
+        if index < max_results - 1:
             all_matches_string += ", "
     raise DiscordSafeException(
-            'Multiple units matched the text: ```{0}``` Please make your text more specific and try again. For an exact match, enclose your text in double quotes. Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
+        'Multiple units matched the text: ```{0}``` Please make your text more specific and try again. '\
+        'For an exact match, enclose your text in double quotes. '\
+        'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
 
-# Add a new column for an esper.
-# The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
-# If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
 def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, columnA1, sandbox):
+    """Add a new column for an esper.
+
+    The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
+    If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
+    """
     columnInteger = fromA1(columnA1)
     if left_or_right_of == 'left-of':
         inheritFromBefore = False  # Meaning, inherit from right
@@ -452,7 +473,7 @@ def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, col
             'You do not have permission to add an esper.')
 
     targetSpreadsheetId = None
-    if (sandbox):
+    if sandbox:
         targetSpreadsheetId = SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
     else:
         targetSpreadsheetId = ESPER_RESONANCE_SPREADSHEET_ID
@@ -514,11 +535,13 @@ def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, col
     return
 
 
-# Add a new row for a unit.
-# The above_or_below parameter needs to be either the string 'above' or 'below'. The row should be in 1-based notation,
-# i.e. the first row is row 1, not row 0.
-# If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
 def addUnitRow(discord_user_id, unit_name, unit_url, above_or_below, row1Based, sandbox):
+    """Add a new row for a unit.
+
+    The above_or_below parameter needs to be either the string 'above' or 'below'. The row should be in 1-based notation,
+    i.e. the first row is row 1, not row 0.
+    If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
+    """
     rowInteger = int(row1Based)
     if above_or_below == 'above':
         inheritFromBefore = False  # Meaning, inherit from below
@@ -535,7 +558,7 @@ def addUnitRow(discord_user_id, unit_name, unit_url, above_or_below, row1Based, 
             'You do not have permission to add a unit.')
 
     targetSpreadsheetId = None
-    if (sandbox):
+    if sandbox:
         targetSpreadsheetId = SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
     else:
         targetSpreadsheetId = ESPER_RESONANCE_SPREADSHEET_ID
@@ -597,12 +620,14 @@ def addUnitRow(discord_user_id, unit_name, unit_url, above_or_below, row1Based, 
     return
 
 
-# Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
-# Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
-# same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
-# right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
-# and not the data of, e.g., another user who has their old nickname.
 def readResonance(user_name, discord_user_id, unit_name, esper_name):
+    """Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
+
+    Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
+    same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
+    right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
+    and not the data of, e.g., another user who has their old nickname.
+    """
     spreadsheetApp = openSpreadsheets()
     if (user_name is not None) and (discord_user_id is not None):
         print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
@@ -629,13 +654,17 @@ def readResonance(user_name, discord_user_id, unit_name, esper_name):
     return final_rows[0][0][0], pretty_unit_name, pretty_esper_name
 
 
-# Read and return the pretty name of the query subject (either a unit or an esper), along with a list of resonances
-# (either unit/resonance, or esper/resonance tuples), for the given user.
-# Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
-# same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
-# right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
-# and not the data of, e.g., another user who has their old nickname.
 def readResonanceList(user_name, discord_user_id, query_string):
+    """Read and return the pretty name of the query subject (either a unit or an esper), and resonance list for the given user.
+
+    Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
+    same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
+    right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
+    and not the data of, e.g., another user who has their old nickname.
+
+    The returned list of resonances is either (unit/resonance) or (esper/resonance) tuples.
+    """
+
     spreadsheetApp = openSpreadsheets()
     if (user_name is not None) and (discord_user_id is not None):
         print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
@@ -659,7 +688,6 @@ def readResonanceList(user_name, discord_user_id, query_string):
         target_name = pretty_unit_name
     except DiscordSafeException as ex:
         unit_lookup_exception_message = ex.message
-        pass
 
     # Try an esper lookup instead
     esper_lookup_exception_message = None
@@ -671,12 +699,12 @@ def readResonanceList(user_name, discord_user_id, query_string):
             target_name = pretty_esper_name
         except DiscordSafeException as ex:
             esper_lookup_exception_message = ex.message
-            pass
 
     # If neither esper or unit is found, fail now.
     if mode is None:
         raise DiscordSafeException(
-            'Unable to find a singular match for: ```{0}```\nUnit lookup results: {1}\nEsper lookup results: {2}'.format(query_string, unit_lookup_exception_message, esper_lookup_exception_message))
+            'Unable to find a singular match for: ```{0}```\nUnit lookup results: {1}\nEsper lookup results: {2}'.format(
+                query_string, unit_lookup_exception_message, esper_lookup_exception_message))
 
     # Grab all the data in one call, so we can read everything at once and have atomicity guarantees.
     result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID,
@@ -716,8 +744,11 @@ def readResonanceList(user_name, discord_user_id, query_string):
     return (target_name, resultString)
 
 
-# Set the esper resonance. Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
 def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_string, priority, comment):
+    """Set the esper resonance.
+
+    Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
+    """
     resonance_int = None
     try:
         resonance_int = int(resonance_numeric_string)
@@ -763,7 +794,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     if priority is not None:
         priority = priority.lower()
     priorityString = None
-    if (resonance_int == 10):
+    if resonance_int == 10:
         priorityString = '10/10'
     elif (priority == 'l') or (priority == 'low') or (priority is None and 'low' in old_value_string.lower()):
         priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(
@@ -774,7 +805,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     elif (priority == 'h') or (priority == 'high') or (priority is None and 'high' in old_value_string.lower()):
         priorityString = RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE.format(
             resonance_int)
-    elif (priority is None):
+    elif priority is None:
         # Priority not specified, and old value doesn't have high/medium/low -> old value was blank, or old value was 10.
         # Default to low priority.
         priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(
@@ -837,9 +868,9 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
         spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, body=requestBody).execute()
     return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
 
-# Generate a safe response for a message from discord, or None if no response is needed.
 
 def prettyPrintVisionCardOcrText(structured):
+    """Generate a safe response for a Vision Card message from discord, or None if no response is needed."""
     result = 'Stats:\n'
     result += '  HP: ' + str(structured['HP']) + '\n'
     result += '  ATK: ' + str(structured['ATK']) + '\n'
@@ -851,7 +882,9 @@ def prettyPrintVisionCardOcrText(structured):
     result += '  ' + structured['Party Ability']
     return result
 
+
 def getDiscordSafeResponse(message):
+    """Process the request and produce a response."""
     if message.author == discord_client.user:
         return (None, None)
 
@@ -932,8 +965,7 @@ def getDiscordSafeResponse(message):
     # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
     # but it's also not common, so it isn't listed in help.
     if message.content.lower().startswith('!whoami'):
-        responseText = '<@{0}>: Your snowflake ID is {1}'.format(
-            from_id, from_id)
+        responseText = '<@{id}>: Your snowflake ID is {id}'.format(id=from_id)
         return (responseText, None)
 
     # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure,
@@ -944,7 +976,7 @@ def getDiscordSafeResponse(message):
         target_member_name = match.group('server_handle').strip()
         members = message.guild.members
         for member in members:
-            if (member.name == target_member_name):
+            if member.name == target_member_name:
                 responseText = '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
                 return (responseText, None)
         responseText = '<@{0}>: no such member {1}'.format(
@@ -965,13 +997,11 @@ def getDiscordSafeResponse(message):
     if admin_add_esper_match:
         esper_name = admin_add_esper_match.group('name').strip()
         esper_url = admin_add_esper_match.group('url').strip()
-        left_or_right_of = admin_add_esper_match.group(
-            'left_or_right_of').strip()
+        left_or_right_of = admin_add_esper_match.group('left_or_right_of').strip()
         column = admin_add_esper_match.group('column').strip()
         print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(
             from_name, from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
-        addEsperColumn(from_id, esper_name, esper_url,
-                       left_or_right_of, column, sandbox)
+        addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
         responseText = '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
         return (responseText, None)
 
@@ -993,8 +1023,7 @@ def getDiscordSafeResponse(message):
         row1Based = admin_add_unit_match.group('row1Based').strip()
         print('unit add (sandbox mode={6}) from user {0}#{1}, for unit {2}, url {3}, position {4}, row {5}'.format(
             from_name, from_discrim, unit_name, unit_url, above_or_below, row1Based, sandbox))
-        addUnitRow(from_id, unit_name, unit_url,
-                       above_or_below, row1Based, sandbox)
+        addUnitRow(from_id, unit_name, unit_url, above_or_below, row1Based, sandbox)
         responseText = '<@{0}>: Added unit {1}!'.format(from_id, unit_name)
         return (responseText, None)
 
@@ -1018,10 +1047,11 @@ def getDiscordSafeResponse(message):
         return (responseText, None)
 
     if message.content.lower().startswith('!admin-help'):
-        responseText = ADMIN_HELP.format(ESPER_RESONANCE_SPREADSHEET_ID,SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID)
+        responseText = ADMIN_HELP.format(ESPER_RESONANCE_SPREADSHEET_ID, SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID)
         return (responseText, None)
 
-    return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
+    return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. '\
+            'Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
 
 
 if __name__ == "__main__":
@@ -1038,16 +1068,19 @@ if __name__ == "__main__":
 
 
 def getDiscordClient():
+    """Return the main discord client object (a singleton)"""
     return discord_client
 
 
 @discord_client.event
 async def on_ready():
+    """Hook automatically called by the discord client when login is complete."""
     print('Bot logged in: {0.user}'.format(discord_client))
 
 
 @discord_client.event
 async def on_message(message):
+    """Hook automatically called by the discord client when a message is received."""
     responseText = None
     reaction = None
     try:
