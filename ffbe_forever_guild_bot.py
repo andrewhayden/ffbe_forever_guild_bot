@@ -881,7 +881,7 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
 
 def prettyPrintVisionCardOcrText(card):
     """Generate a safe response for a Vision Card message from discord, or None if no response is needed."""
-    result = 'Stats:\n'
+    result = card.Name + '\n'
     result += '  Cost: ' + str(card.Cost) + '\n'
     result += '  HP: ' + str(card.HP) + '\n'
     result += '  DEF: ' + str(card.DEF) + '\n'
@@ -893,10 +893,10 @@ def prettyPrintVisionCardOcrText(card):
     result += '  AGI: ' + str(card.AGI) + '\n'
     result += '  MAG: ' + str(card.MAG) + '\n'
     result += '  Luck: ' + str(card.Luck) + '\n'
-    result += 'Party Ability: ' + card.PartyAbility + '\n'
-    result += 'Bestowed Effects:\n'
+    result += '  Party Ability: ' + card.PartyAbility + '\n'
+    result += '  Bestowed Effects:\n'
     for bestowed_effect in card.BestowedEffects:
-        result += '  ' + bestowed_effect + '\n'
+        result += '    ' + bestowed_effect + '\n'
     return result
 
 
@@ -1081,24 +1081,42 @@ async def getDiscordSafeResponse(message):
                 buffer.seek(0)
                 temp_file = discord.File(buffer, filename="Step 3: Thresholded.png")
                 await message.channel.send("XOCR Debug Step 3: Thresholded", file=temp_file)
-            if vision_card.debug_image_step4_cropped_gray:
+            if vision_card.stats_debug_image_step4_cropped_gray:
                 buffer = io.BytesIO()
-                vision_card.debug_image_step4_cropped_gray.save(buffer, format='PNG')
+                vision_card.stats_debug_image_step4_cropped_gray.save(buffer, format='PNG')
                 buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 4: Cropped Grayscale.png")
-                await message.channel.send("XOCR Debug Step 4: Cropped Grayscale", file=temp_file)
-            if vision_card.debug_image_step5_cropped_gray_inverted:
+                temp_file = discord.File(buffer, filename="Step 4: Stats Cropped Grayscale.png")
+                await message.channel.send("XOCR Debug Step 4: Stats Cropped Grayscale", file=temp_file)
+            if vision_card.info_debug_image_step4_cropped_gray:
                 buffer = io.BytesIO()
-                vision_card.debug_image_step5_cropped_gray_inverted.save(buffer, format='PNG')
+                vision_card.info_debug_image_step4_cropped_gray.save(buffer, format='PNG')
                 buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 5: Cropped Grayscale Inverted.png")
-                await message.channel.send("XOCR Debug Step 5: Cropped Grayscale Inverted", file=temp_file)
-            if vision_card.debug_image_step6_converted_final_ocr_input_image:
+                temp_file = discord.File(buffer, filename="Step 4: Info Cropped Grayscale.png")
+                await message.channel.send("XOCR Debug Step 4: Info Cropped Grayscale", file=temp_file)
+            if vision_card.stats_debug_image_step5_cropped_gray_inverted:
                 buffer = io.BytesIO()
-                vision_card.debug_image_step6_converted_final_ocr_input_image.save(buffer, format='PNG')
+                vision_card.stats_debug_image_step5_cropped_gray_inverted.save(buffer, format='PNG')
                 buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 6: Final OCR Input.png")
-                await message.channel.send("XOCR Debug Step 6: Final OCR Input", file=temp_file)
+                temp_file = discord.File(buffer, filename="Step 5: Stats Cropped Grayscale Inverted.png")
+                await message.channel.send("XOCR Debug Step 5: Stats Cropped Grayscale Inverted", file=temp_file)
+            if vision_card.info_debug_image_step5_cropped_gray_inverted:
+                buffer = io.BytesIO()
+                vision_card.info_debug_image_step5_cropped_gray_inverted.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 5: Info Cropped Grayscale Inverted.png")
+                await message.channel.send("XOCR Debug Step 5: Info Cropped Grayscale Inverted", file=temp_file)
+            if vision_card.stats_debug_image_step6_converted_final_ocr_input_image:
+                buffer = io.BytesIO()
+                vision_card.stats_debug_image_step6_converted_final_ocr_input_image.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 6: Stats Final OCR Input.png")
+                await message.channel.send("XOCR Debug Step 6: Stats Final OCR Input", file=temp_file)
+            if vision_card.info_debug_image_step6_converted_final_ocr_input_image:
+                buffer = io.BytesIO()
+                vision_card.info_debug_image_step6_converted_final_ocr_input_image.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 6: Info Final OCR Input.png")
+                await message.channel.send("XOCR Debug Step 6: Info Final OCR Input", file=temp_file)
         responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
         return (responseText, None)
 

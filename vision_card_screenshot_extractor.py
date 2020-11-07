@@ -19,6 +19,7 @@ MIN_PARTY_ABILITY_STRING_LENGTH_SANITY = 4
 @dataclass
 class VisionCard:
     """Contains all the raw stats for a vision card."""
+    Name: str = None
     Cost: int = 0
     HP: int = 0
     DEF: int = 0
@@ -35,10 +36,14 @@ class VisionCard:
     debug_image_step1_gray: Image = None
     debug_image_step2_blurred: Image = None
     debug_image_step3_thresholded: Image = None
-    debug_image_step4_cropped_gray: Image = None
-    debug_image_step5_cropped_gray_inverted: Image = None
-    debug_image_step6_converted_final_ocr_input_image: Image = None
-    debug_raw_text: str = None
+    stats_debug_image_step4_cropped_gray: Image = None
+    stats_debug_image_step5_cropped_gray_inverted: Image = None
+    stats_debug_image_step6_converted_final_ocr_input_image: Image = None
+    info_debug_image_step4_cropped_gray: Image = None
+    info_debug_image_step5_cropped_gray_inverted: Image = None
+    info_debug_image_step6_converted_final_ocr_input_image: Image = None
+    stats_debug_raw_text: str = None
+    info_debug_raw_text: str = None
 
 def downloadScreenshotFromUrl(url):
     """Download a vision card screenshot from the specified URL and return as an OpenCV image object."""
@@ -55,6 +60,8 @@ def extractRawTextFromVisionCard(vision_card_image, debug_vision_card:VisionCard
     """Get the raw, unstructured text from a vision card (basically the raw OCR dump string).
 
     If debug_vision_card is a VisionCard object, retains the intermediate images as debug information attached to that object.
+    Returns a tuple of raw (card name text, card stats text) strings. These strings will need to be interpreted and cleaned of
+    OCR mistakes / garbage.
     """
     height, width, _ = vision_card_image.shape # ignored third element of the tuple is 'channels'
 
@@ -103,34 +110,83 @@ def extractRawTextFromVisionCard(vision_card_image, debug_vision_card:VisionCard
         raise Exception("No contours in image!")
 
     # Now on to text isolation
+
+    # The name of the unit appears above the area where the stats are, just above buttons for
+    # "Stats" and "Information". It appears that the unit name is always aligned vertically with
+    # the top of the vision card, and that is the anchor point for the layout. So from here an
+    # HTML-like table layout begins with one row containing the unit's rarity and name, then the
+    # next row containing the stats and information boxes, and the third (and largest) row
+    # contains all the stats we want to extract.
+    # This table-like thing appears to be vertically floating in the center of the screen, with
+    # any excess empty space appearing strictly above the unit name or below the stats table,
+    # i.e. the three rows of data are kept together with no additional vertical space no matter
+    # how much extra vertical space there is.
+    # The top of the screen is reserved for the status bar and appears to have the same vertical
+    # proportions as the rows for the unit name and the stats/information buttons. So to recap:
+    # [player status bar, vertical size = X]
+    # [any excess vertical space]
+    # [unit name bar, vertical size ~= X]
+    # [stats/information bar, vertical size ~=X]
+    # Thus... if we take the area above the stats table, and remove the top 1/3, we should just
+    # about always end up with the very first text being the unit rarity + unit name row.
+    # Notably, long vision card names will overflow horizontal edge of the stats table and can
+    # extend out to the center of the screen. So include the whole area up to where the original
+    # center-cut was made, at width/2.
+    # Finally, the unit rarity logo causes problems and is interpeted as garbage due to the
+    # cursive script and color gradients. Fortunately the size of the logo appears to be in fixed
+    # proportion to the size of the stats box, with the text always starting at the same position
+    # relative to the left edge of the stats box no matter which logo (N, R, SR, MR or UR) is
+    # used. For a stats panel about 420px wide the logo is about 75 pixels wide (about 18% of the
+    # total width). So we will remove the left-most 18% of the space as well.
+    info_bounds_logo_ratio = 0.18
+    info_bounds_pad_left = (int) (info_bounds_logo_ratio * largestW)
+    info_bounds_x = largestX + info_bounds_pad_left
+    info_bounds_y = (int) (largestY * .33)
+    info_bounds_w = ((int) (width/2)) - info_bounds_x
+    info_bounds_h = (int) (largestY * .67)
+
     # Crop and invert the image, we need black on white.
     # Note that cropping via slicing has x values first, then y values
-    cropped_gray_image = gray_image[largestY:(largestY+largestH), largestX:(largestX+largestW)]
+    stats_cropped_gray_image = gray_image[largestY:(largestY+largestH), largestX:(largestX+largestW)]
+    info_cropped_gray_image = gray_image[info_bounds_y:(info_bounds_y+info_bounds_h), info_bounds_x:(info_bounds_x+info_bounds_w)]
     if debug_vision_card is not None:
-        debug_vision_card.debug_image_step4_cropped_gray = Image.fromarray(cropped_gray_image)
-    cropped_gray_inverted_image = cv2.bitwise_not(cropped_gray_image)
+        debug_vision_card.stats_debug_image_step4_cropped_gray = Image.fromarray(stats_cropped_gray_image)
+        debug_vision_card.info_debug_image_step4_cropped_gray = Image.fromarray(info_cropped_gray_image)
+    stats_cropped_gray_inverted_image = cv2.bitwise_not(stats_cropped_gray_image)
+    info_cropped_gray_inverted_image = cv2.bitwise_not(info_cropped_gray_image)
     if debug_vision_card is not None:
-        debug_vision_card.debug_image_step5_cropped_gray_inverted = Image.fromarray(cropped_gray_inverted_image)
+        debug_vision_card.stats_debug_image_step5_cropped_gray_inverted = Image.fromarray(stats_cropped_gray_inverted_image)
+        debug_vision_card.info_debug_image_step5_cropped_gray_inverted = Image.fromarray(info_cropped_gray_inverted_image)
 
     # Find only the darkest parts of the image, which should now be the text.
-    lowerBoundHsvValue = 0
-    upperBoundHsvValue = 80
-    main_text_mask = cv2.inRange(cropped_gray_inverted_image, lowerBoundHsvValue, upperBoundHsvValue)
-    main_text_mask = cv2.bitwise_not(main_text_mask)
-    final_ocr_input_image = main_text_mask
-    if debug_vision_card is not None:
-        debug_vision_card.debug_image_step6_converted_final_ocr_input_image = Image.fromarray(final_ocr_input_image)
-
-    # show the output image
-    # cv2.namedWindow("Result",  cv2.WINDOW_NORMAL)
-    # cv2.imshow("Result", finalImage)
-    # cv2.waitKey(30000)
+    stats_lower_bound_hsv_value = 0
+    stats_upper_bound_hsv_value = 80
+    # For the info area the text is pure white on a dark background normally. There is a unit logo with the text.
+    # To try and eliminate the logo, be EXTREMELY restrictive on the HSV value here. Only almost-pure white (255,255,255) should
+    # be considered at all. Everything else should be thrown out.
+    info_lower_bound_hsv_value = 0
+    info_upper_bound_hsv_value = 80
+    stats_text_mask = cv2.inRange(stats_cropped_gray_inverted_image, stats_lower_bound_hsv_value, stats_upper_bound_hsv_value)
+    info_text_mask = cv2.inRange(info_cropped_gray_inverted_image, info_lower_bound_hsv_value, info_upper_bound_hsv_value)
+    stats_text_mask = cv2.bitwise_not(stats_text_mask)
+    info_text_mask = cv2.bitwise_not(info_text_mask)
+    stats_final_ocr_input_image = stats_text_mask
+    info_final_ocr_input_image = info_text_mask
 
     # Now convert back to a regular Python image from CV2.
-    converted_final_ocr_input_image = Image.fromarray(final_ocr_input_image)
+    stats_converted_final_ocr_input_image = Image.fromarray(stats_final_ocr_input_image)
+    info_converted_final_ocr_input_image = Image.fromarray(info_final_ocr_input_image)
+    if debug_vision_card is not None:
+        debug_vision_card.stats_debug_image_step6_converted_final_ocr_input_image = stats_converted_final_ocr_input_image
+        debug_vision_card.info_debug_image_step6_converted_final_ocr_input_image = info_converted_final_ocr_input_image
+
     # And last but not least... extract the text from that image.
-    extractedText = pytesseract.image_to_string(converted_final_ocr_input_image)
-    return extractedText
+    stats_extracted_text = pytesseract.image_to_string(stats_converted_final_ocr_input_image)
+    info_extracted_text = pytesseract.image_to_string(info_converted_final_ocr_input_image)
+    if debug_vision_card is not None:
+        debug_vision_card.stats_debug_raw_text = stats_extracted_text
+        debug_vision_card.info_debug_raw_text = info_extracted_text
+    return (info_extracted_text, stats_extracted_text)
 
 def bindStats(stat_tuples_list, vision_card):
     """Binds 0 or more (stat_name, stat_value) tuples from the specified list to the specified vision card."""
@@ -300,11 +356,13 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
     DONE = 3
     progress = AT_START
     result = VisionCard()
-    raw = extractRawTextFromVisionCard(vision_card_image, result if is_debug else None)
-    print('raw text from card:' + raw)
+    raw_info_text, raw_stats_text = extractRawTextFromVisionCard(vision_card_image, result if is_debug else None)
+    print('raw info text from card:' + raw_info_text)
+    print('raw stats text from card:' + raw_stats_text)
+    result.Name = raw_info_text.splitlines(keepends=False)[0].strip()
     safe_bestowed_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
 
-    for line in raw.splitlines(keepends=False):
+    for line in raw_stats_text.splitlines(keepends=False):
         line = line.strip()
         if not line:
             continue
