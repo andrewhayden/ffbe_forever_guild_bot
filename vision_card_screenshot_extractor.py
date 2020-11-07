@@ -1,7 +1,9 @@
 """A module for extracting structured data from Vision Card screenshots."""
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List
+
 import cv2
 import imutils
 import numpy
@@ -29,7 +31,7 @@ class VisionCard:
     MAG: int = 0
     Luck: int = 0
     PartyAbility: str = None
-    BestowedEffects: str = None
+    BestowedEffects: List[str] = field(default_factory=list)
 
 def downloadScreenshotFromUrl(url):
     """Download a vision card screenshot from the specified URL and return as an OpenCV image object."""
@@ -144,7 +146,7 @@ def bindStat(stat_name, stat_value, vision_card):
     elif stat_name.startswith('PARTY ABILITY'):
         vision_card.PartyAbility = stat_value
     elif stat_name.startswith('BESTOWED EFFECTS'):
-        vision_card.BestowedEffects = stat_value
+        vision_card.BestowedEffects = [stat_value]
     else:
         raise Exception('Unknown stat name: "{0}"'.format(stat_name))
 
@@ -275,7 +277,6 @@ def extractNiceTextFromVisionCard(vision_card_image):
     result = VisionCard()
     raw = extractRawTextFromVisionCard(vision_card_image)
     print('raw text from card:' + raw)
-    bestowed_effects_buffer = []
     safe_bestowed_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
 
     for line in raw.splitlines(keepends=False):
@@ -303,10 +304,9 @@ def extractNiceTextFromVisionCard(vision_card_image):
             else:
                 # The Bestowed Effects section often ends with garbage when the OCR hits the edge of the box and gets confused.
                 if safe_bestowed_effects_regex.match(line):
-                    bestowed_effects_buffer.append(line)
+                    result.BestowedEffects.append(line)
         elif progress == DONE:
             break
-    result.BestowedEffects = '\n'.join(bestowed_effects_buffer)
     return result
 
 def invokeStandalone(path):

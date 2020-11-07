@@ -889,7 +889,9 @@ def prettyPrintVisionCardOcrText(card):
     result += '  MAG: ' + str(card.MAG) + '\n'
     result += '  Luck: ' + str(card.Luck) + '\n'
     result += 'Party Ability: ' + card.PartyAbility + '\n'
-    result += 'Bestowed Effects:\n' + card.BestowedEffects
+    result += 'Bestowed Effects:\n'
+    for bestowed_effect in card.BestowedEffects:
+        result += '  ' + bestowed_effect + '\n'
     return result
 
 
