@@ -249,8 +249,18 @@ def fuzzyStatExtract(raw_line):
     Most of the common cases are all handled below specifically, and this should account for the
     vast majority of text encountered. Any case that can't be normalized will raise an exception.
     """
+    # The only characters that should appear in stats are letters and numbers. Throw everyhing else
+    # away, this takes care of noise in the image that might cause a spurious '.' or similar to
+    # appear where it should not be. The code below gracefully handles the absence of a value.
+    baked = ''
+    for _, one_char in enumerate(raw_line):
+        if one_char.isalnum():
+            baked += one_char
+        else:
+            baked += ' '
+
     # Strip whitespace from the sides, upper-case, and then split on whitespace.
-    substrings = raw_line.upper().strip().split()
+    substrings = baked.upper().strip().split()
     num_substrings = len(substrings)
 
     # There are only a few possibilities, and they depend on the length of the substrings array
@@ -258,6 +268,10 @@ def fuzzyStatExtract(raw_line):
     just_alphas = re.compile(r'^(?P<stat_name>[a-zA-Z]+)$')
     if not just_alphas.match(substrings[0]):
         raise Exception('First word must consist of only letters')
+
+    # For debugging nasty case issues below, re-enable these lines:
+    # print('baked line: ' + baked)
+    # print('num substrings: ' + str(num_substrings))
 
     # Length 1: Just a name, with no number (implies value is nothing)
     if num_substrings == 1:
@@ -283,7 +297,7 @@ def fuzzyStatExtract(raw_line):
     # Case 3.3: A name, a name, and garbage (OCR lost the first value and misread the second value)
     # Case 3.4: A name, garbage, and another name (OCR misread the first value and lost the second value)
     if num_substrings == 3:
-        if just_numbers.match(substrings[1]) and just_numbers.match(substrings[2]): # Case 3.1
+        if just_numbers.match(substrings[1]) and just_alphas.match(substrings[2]): # Case 3.1
             return [(substrings[0], intOrNone(substrings[1])), (substrings[2], None)]
         if just_alphas.match(substrings[1]) and just_numbers.match(substrings[2]): # Case 3.2
             return [(substrings[0], None), (substrings[1], intOrNone(substrings[2]))]
