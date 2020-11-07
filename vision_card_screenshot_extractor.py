@@ -15,6 +15,10 @@ from PIL import Image
 # garbage from OCR gone awry.
 MIN_PARTY_ABILITY_STRING_LENGTH_SANITY = 4
 
+# Ignore any bestowed ability that is a string shorter than this length, usually
+# garbage from OCR gone awry.
+MIN_BESTOWED_ABILITY_STRING_LENGTH_SANITY = 4
+
 # dataclass
 @dataclass
 class VisionCard:
@@ -349,6 +353,7 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
     # Bestowed Effects
     #
     # Acquired JP Up 50%
+    # TTR
     #
     # Awakening Bonus Resistance Display
     # ---- END RAW DUMP ----
@@ -371,10 +376,12 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
     progress = AT_START
     result = VisionCard()
     raw_info_text, raw_stats_text = extractRawTextFromVisionCard(vision_card_image, result if is_debug else None)
+    # TODO: Remove these when the code is more bullet-proof
     print('raw info text from card:' + raw_info_text)
     print('raw stats text from card:' + raw_stats_text)
     result.Name = raw_info_text.splitlines(keepends=False)[0].strip()
-    safe_bestowed_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
+    # This regex is used to ignore trash from OCR that might appear at the boundaries of the party/bestowed ability boxes.
+    safe_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
 
     for line in raw_stats_text.splitlines(keepends=False):
         line = line.strip()
@@ -387,21 +394,21 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
             elif upper.startswith('PARTY'):
                 progress = IN_PARTY_ABILITY
         elif progress == IN_PARTY_ABILITY:
-            if len(upper) < MIN_PARTY_ABILITY_STRING_LENGTH_SANITY:
-                pass # Ignore trash, such as the "Cau" in the example above, if it appears on its own line.
             if upper.startswith('BESTOWED EFFECTS'):
                 progress = IN_BESTOWED_EFFECTS
-            else:
-                if result.PartyAbility is not None:
-                    raise Exception('Found multiple party ability lines in vision card') # should not happen, party ability is only one line of text
+            elif len(upper) < MIN_PARTY_ABILITY_STRING_LENGTH_SANITY:
+                pass # Ignore trash, such as the "Cau" in the example above, if it appears on its own line.
+            elif result.PartyAbility is not None:
+                raise Exception('Found multiple party ability lines in vision card') # should not happen, party ability is only one line of text
+            elif safe_effects_regex.match(line):
                 result.PartyAbility = line
         elif progress == IN_BESTOWED_EFFECTS:
             if upper.startswith('AWAKENING BONUS'):
                 progress = DONE
-            else:
-                # The Bestowed Effects section often ends with garbage when the OCR hits the edge of the box and gets confused.
-                if safe_bestowed_effects_regex.match(line):
-                    result.BestowedEffects.append(line)
+            elif len(upper) < MIN_BESTOWED_ABILITY_STRING_LENGTH_SANITY:
+                pass # Ignore trash, such as the "TTR" in the example above, if it appears on its own line.
+            elif safe_effects_regex.match(line):
+                result.BestowedEffects.append(line)
         elif progress == DONE:
             break
     return result
