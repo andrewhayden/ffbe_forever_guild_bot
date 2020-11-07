@@ -7,10 +7,14 @@ import pprint  # for pretty-printing JSON during debugging, etc
 import json
 import os.path
 import re
+
 import discord
+
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from PIL import Image
+
 from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
 
 # -----------------------------------------------------------------------------
@@ -1063,60 +1067,22 @@ async def getDiscordSafeResponse(message):
         screenshot = downloadScreenshotFromUrl(url)
         vision_card = extractNiceTextFromVisionCard(screenshot, is_ocr_debug_request)
         if is_ocr_debug_request:
-            if vision_card.debug_image_step1_gray:
-                buffer = io.BytesIO()
-                vision_card.debug_image_step1_gray.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 1: Grayscale.png")
-                await message.channel.send("XOCR Debug Step 1: Grayscale", file=temp_file)
-            if vision_card.debug_image_step2_blurred:
-                buffer = io.BytesIO()
-                vision_card.debug_image_step2_blurred.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 2: Blurred.png")
-                await message.channel.send("XOCR Debug Step 2: Blurred", file=temp_file)
-            if vision_card.debug_image_step3_thresholded:
-                buffer = io.BytesIO()
-                vision_card.debug_image_step3_thresholded.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 3: Thresholded.png")
-                await message.channel.send("XOCR Debug Step 3: Thresholded", file=temp_file)
-            if vision_card.stats_debug_image_step4_cropped_gray:
-                buffer = io.BytesIO()
-                vision_card.stats_debug_image_step4_cropped_gray.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 4: Stats Cropped Grayscale.png")
-                await message.channel.send("XOCR Debug Step 4: Stats Cropped Grayscale", file=temp_file)
-            if vision_card.info_debug_image_step4_cropped_gray:
-                buffer = io.BytesIO()
-                vision_card.info_debug_image_step4_cropped_gray.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 4: Info Cropped Grayscale.png")
-                await message.channel.send("XOCR Debug Step 4: Info Cropped Grayscale", file=temp_file)
-            if vision_card.stats_debug_image_step5_cropped_gray_inverted:
-                buffer = io.BytesIO()
-                vision_card.stats_debug_image_step5_cropped_gray_inverted.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 5: Stats Cropped Grayscale Inverted.png")
-                await message.channel.send("XOCR Debug Step 5: Stats Cropped Grayscale Inverted", file=temp_file)
-            if vision_card.info_debug_image_step5_cropped_gray_inverted:
-                buffer = io.BytesIO()
-                vision_card.info_debug_image_step5_cropped_gray_inverted.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 5: Info Cropped Grayscale Inverted.png")
-                await message.channel.send("XOCR Debug Step 5: Info Cropped Grayscale Inverted", file=temp_file)
-            if vision_card.stats_debug_image_step6_converted_final_ocr_input_image:
-                buffer = io.BytesIO()
-                vision_card.stats_debug_image_step6_converted_final_ocr_input_image.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 6: Stats Final OCR Input.png")
-                await message.channel.send("XOCR Debug Step 6: Stats Final OCR Input", file=temp_file)
-            if vision_card.info_debug_image_step6_converted_final_ocr_input_image:
-                buffer = io.BytesIO()
-                vision_card.info_debug_image_step6_converted_final_ocr_input_image.save(buffer, format='PNG')
-                buffer.seek(0)
-                temp_file = discord.File(buffer, filename="Step 6: Info Final OCR Input.png")
-                await message.channel.send("XOCR Debug Step 6: Info Final OCR Input", file=temp_file)
+            all_images = [
+                vision_card.debug_image_step1_gray,
+                vision_card.debug_image_step2_blurred,
+                vision_card.debug_image_step3_thresholded,
+                vision_card.stats_debug_image_step4_cropped_gray,
+                vision_card.stats_debug_image_step5_cropped_gray_inverted,
+                vision_card.stats_debug_image_step6_converted_final_ocr_input_image,
+                vision_card.info_debug_image_step4_cropped_gray,
+                vision_card.info_debug_image_step5_cropped_gray_inverted,
+                vision_card.info_debug_image_step6_converted_final_ocr_input_image]
+            combined_image = stitchImages(all_images)
+            buffer = io.BytesIO()
+            combined_image.save(buffer, format='PNG')
+            buffer.seek(0)
+            temp_file = discord.File(buffer, filename="Intermediate OCR Debug.png")
+            await message.channel.send("Intermediate OCR Debug", file=temp_file)
         responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
         return (responseText, None)
 
@@ -1131,6 +1097,19 @@ async def getDiscordSafeResponse(message):
     return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. '\
             'Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
 
+def stitchImages(images):
+    """Combine images horizontally, into a single large image."""
+    total_width = 0
+    max_height = 0
+    for one_image in images:
+        total_width += one_image.width
+        max_height = max(max_height, one_image.height)
+    result = Image.new('RGB', (total_width, max_height))
+    left_pad = 0
+    for one_image in images:
+        result.paste(one_image, (left_pad, 0))
+        left_pad += one_image.width
+    return result
 
 if __name__ == "__main__":
     readConfig()
