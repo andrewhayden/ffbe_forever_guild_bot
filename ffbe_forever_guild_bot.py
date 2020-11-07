@@ -1,4 +1,5 @@
 from __future__ import print_function
+import io
 import logging
 import pickle
 # pylint: disable=unused-import
@@ -70,6 +71,9 @@ HELP = '''`!resonance unit-name/esper-name`
 `!xocr`
 > EXPERIMENTAL (might break!): Send this message with no other text, and attach a screenshot of a vision card. The bot will attempt to extract the stats from the vision card image.
 
+`!xocr-debug`
+> EXPERIMENTAL (might break!): Like !xocr, but the bot will attempt to send back to you the intermediate images it constructed while processing text. Warning: may eat a lot of your bandwidth.
+
 **Names of Espers and Units**
 You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, here's how searching works:
 1. If you enclose the name of the unit or esper in double quotes, only an EXACT MATCH will be performed. This is handy to force the correct unit when dealing with some unique situations like "Little Leela" and "Little Leela (Halloween)"
@@ -98,6 +102,7 @@ RES_FETCH_OTHER_PATTERN = re.compile(
 
 # Pattern for getting your own list of resonance values for a given esper/unit. Note the lack of a '/' separator.
 EXPERIMENTAL_VISION_CARD_OCR_PATTERN = re.compile(r'^!xocr$')
+EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN = re.compile(r'^!xocr-debug$')
 
 # (Hidden) Pattern for getting your own user ID out of Discord
 WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')
@@ -895,7 +900,7 @@ def prettyPrintVisionCardOcrText(card):
     return result
 
 
-def getDiscordSafeResponse(message):
+async def getDiscordSafeResponse(message):
     """Process the request and produce a response."""
     if message.author == discord_client.user:
         return (None, None)
@@ -1044,13 +1049,56 @@ def getDiscordSafeResponse(message):
             from_id)
         return (responseText, None)
 
-    match = EXPERIMENTAL_VISION_CARD_OCR_PATTERN.match(message.content.lower())
-    if match:
+    is_ocr_request = False
+    is_ocr_debug_request = False
+    if EXPERIMENTAL_VISION_CARD_OCR_PATTERN.match(message.content.lower()):
+        is_ocr_request = True
+    if EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN.match(message.content.lower()):
+        is_ocr_request = True
+        is_ocr_debug_request = True
+    if is_ocr_request:
         # Try to extract text from a vision card screenshot that is sent as an attachment to this message.
         url = message.attachments[0].url
         print('vision card ocr request from user %s#%s, for url %s' % (from_name, from_discrim, url))
         screenshot = downloadScreenshotFromUrl(url)
-        vision_card = extractNiceTextFromVisionCard(screenshot)
+        vision_card = extractNiceTextFromVisionCard(screenshot, is_ocr_debug_request)
+        if is_ocr_debug_request:
+            if vision_card.debug_image_step1_gray:
+                buffer = io.BytesIO()
+                vision_card.debug_image_step1_gray.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 1: Grayscale.png")
+                await message.channel.send("XOCR Debug Step 1: Grayscale", file=temp_file)
+            if vision_card.debug_image_step2_blurred:
+                buffer = io.BytesIO()
+                vision_card.debug_image_step2_blurred.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 2: Blurred.png")
+                await message.channel.send("XOCR Debug Step 2: Blurred", file=temp_file)
+            if vision_card.debug_image_step3_thresholded:
+                buffer = io.BytesIO()
+                vision_card.debug_image_step3_thresholded.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 3: Thresholded.png")
+                await message.channel.send("XOCR Debug Step 3: Thresholded", file=temp_file)
+            if vision_card.debug_image_step4_cropped_gray:
+                buffer = io.BytesIO()
+                vision_card.debug_image_step4_cropped_gray.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 4: Cropped Grayscale.png")
+                await message.channel.send("XOCR Debug Step 4: Cropped Grayscale", file=temp_file)
+            if vision_card.debug_image_step5_cropped_gray_inverted:
+                buffer = io.BytesIO()
+                vision_card.debug_image_step5_cropped_gray_inverted.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 5: Cropped Grayscale Inverted.png")
+                await message.channel.send("XOCR Debug Step 5: Cropped Grayscale Inverted", file=temp_file)
+            if vision_card.debug_image_step6_converted_final_ocr_input_image:
+                buffer = io.BytesIO()
+                vision_card.debug_image_step6_converted_final_ocr_input_image.save(buffer, format='PNG')
+                buffer.seek(0)
+                temp_file = discord.File(buffer, filename="Step 6: Final OCR Input.png")
+                await message.channel.send("XOCR Debug Step 6: Final OCR Input", file=temp_file)
         responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
         return (responseText, None)
 
@@ -1096,7 +1144,7 @@ async def on_message(message):
     responseText = None
     reaction = None
     try:
-        responseText, reaction = getDiscordSafeResponse(message)
+        responseText, reaction = await getDiscordSafeResponse(message)
     except DiscordSafeException as safeException:
         responseText = safeException.message
     if responseText:

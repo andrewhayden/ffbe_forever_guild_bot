@@ -32,6 +32,13 @@ class VisionCard:
     Luck: int = 0
     PartyAbility: str = None
     BestowedEffects: List[str] = field(default_factory=list)
+    debug_image_step1_gray: Image = None
+    debug_image_step2_blurred: Image = None
+    debug_image_step3_thresholded: Image = None
+    debug_image_step4_cropped_gray: Image = None
+    debug_image_step5_cropped_gray_inverted: Image = None
+    debug_image_step6_converted_final_ocr_input_image: Image = None
+    debug_raw_text: str = None
 
 def downloadScreenshotFromUrl(url):
     """Download a vision card screenshot from the specified URL and return as an OpenCV image object."""
@@ -44,8 +51,11 @@ def downloadScreenshotFromUrl(url):
         # pylint: disable=raise-missing-from
         raise Exception('Error while downloading or converting image: ' + url) # deliberately low on details as this may be surfaced online.
 
-def extractRawTextFromVisionCard(vision_card_image):
-    """Get the raw, unstructured text from a vision card (basically the raw OCR dump string)."""
+def extractRawTextFromVisionCard(vision_card_image, debug_vision_card:VisionCard = None):
+    """Get the raw, unstructured text from a vision card (basically the raw OCR dump string).
+
+    If debug_vision_card is a VisionCard object, retains the intermediate images as debug information attached to that object.
+    """
     height, width, _ = vision_card_image.shape # ignored third element of the tuple is 'channels'
 
     # For vision cards, the screen is divided into left and right. The right side
@@ -56,8 +66,14 @@ def extractRawTextFromVisionCard(vision_card_image):
     # Convert the resized image to grayscale, blur it slightly, and threshold it
     # to set up the input to the contour finder.
     gray_image = cv2.cvtColor(vision_card_image, cv2.COLOR_BGR2GRAY)
+    if debug_vision_card is not None:
+        debug_vision_card.debug_image_step1_gray = Image.fromarray(gray_image)
     blurred_image = cv2.GaussianBlur(gray_image, (5, 5), 0)
+    if debug_vision_card is not None:
+        debug_vision_card.debug_image_step2_blurred = Image.fromarray(blurred_image)
     thresholded_image = cv2.threshold(blurred_image, 70, 255, cv2.THRESH_BINARY)[1]
+    if debug_vision_card is not None:
+        debug_vision_card.debug_image_step3_thresholded = Image.fromarray(thresholded_image)
 
     # Find and enumerate all the contours.
     contours = cv2.findContours(thresholded_image.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -90,7 +106,11 @@ def extractRawTextFromVisionCard(vision_card_image):
     # Crop and invert the image, we need black on white.
     # Note that cropping via slicing has x values first, then y values
     cropped_gray_image = gray_image[largestY:(largestY+largestH), largestX:(largestX+largestW)]
+    if debug_vision_card is not None:
+        debug_vision_card.debug_image_step4_cropped_gray = Image.fromarray(cropped_gray_image)
     cropped_gray_inverted_image = cv2.bitwise_not(cropped_gray_image)
+    if debug_vision_card is not None:
+        debug_vision_card.debug_image_step5_cropped_gray_inverted = Image.fromarray(cropped_gray_inverted_image)
 
     # Find only the darkest parts of the image, which should now be the text.
     lowerBoundHsvValue = 0
@@ -98,6 +118,8 @@ def extractRawTextFromVisionCard(vision_card_image):
     main_text_mask = cv2.inRange(cropped_gray_inverted_image, lowerBoundHsvValue, upperBoundHsvValue)
     main_text_mask = cv2.bitwise_not(main_text_mask)
     final_ocr_input_image = main_text_mask
+    if debug_vision_card is not None:
+        debug_vision_card.debug_image_step6_converted_final_ocr_input_image = Image.fromarray(final_ocr_input_image)
 
     # show the output image
     # cv2.namedWindow("Result",  cv2.WINDOW_NORMAL)
@@ -235,8 +257,11 @@ def fuzzyStatExtract(raw_line):
     # Anything else (5 groups in the split, anything that fell past 4.5 above, etc) cannot be handled. Give up.
     raise Exception('Malformed input')
 
-def extractNiceTextFromVisionCard(vision_card_image):
-    """Fully process and extract structured, well-defined text from a Vision Card image."""
+def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
+    """Fully process and extract structured, well-defined text from a Vision Card image.
+
+    If is_debug == True, also captures debugging information.
+    """
     # After the first major vision card update, it became possible for additional stats to be
     # boosted by vision cards. Thus the raw text changed, and now has a more complex form.
     # An example of the raw text is below, note that the order is fixed and should not vary:
@@ -275,7 +300,7 @@ def extractNiceTextFromVisionCard(vision_card_image):
     DONE = 3
     progress = AT_START
     result = VisionCard()
-    raw = extractRawTextFromVisionCard(vision_card_image)
+    raw = extractRawTextFromVisionCard(vision_card_image, result if is_debug else None)
     print('raw text from card:' + raw)
     safe_bestowed_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
 
