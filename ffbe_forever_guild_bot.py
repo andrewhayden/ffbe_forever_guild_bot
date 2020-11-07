@@ -15,7 +15,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from PIL import Image
 
-from worksheet_utils import fuzzyMatches, fuzzyFindRow, normalizeName, safeWorksheetName, AmbiguousSearchException, NoResultsException
+from worksheet_utils import fuzzyFindRow, fuzzyFindColumn, normalizeName, safeWorksheetName, fromA1, AmbiguousSearchException, NoResultsException
 from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
 
 # -----------------------------------------------------------------------------
@@ -210,30 +210,6 @@ def maybeSplitMessageNicely(message_text):
     return result
 
 
-def toA1(intValue):
-    """Convert an integer value to "A1 Notation", i.e. the column name in a spreadsheet. Max value 26*26."""
-    if intValue > 26*26:
-        raise Exception('number too large')
-    if intValue <= 26:
-        return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[intValue - 1]
-    bigPart = intValue // 26
-    remainder = intValue - (bigPart * 26)
-    return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[bigPart - 1] + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[remainder - 1]
-
-
-def fromA1(a1Value):
-    """Convert a value in "A1 Notation", i.e. the column name in a spreadsheet, to a 1-based integer offset."""
-    numChars = len(a1Value)
-    if numChars > 2:
-        raise DiscordSafeException('number too large: ' + a1Value)
-    a1Value = a1Value.upper()
-    result = (ord(a1Value[-1]) - ord('A')) + 1
-    if numChars == 2:
-        upper = (ord(a1Value[-2]) - ord('A')) + 1
-        result = (26 * upper) + result
-    return result
-
-
 def openSpreadsheets():
     """Open the spreadsheet and return a tuple of the service object and the spreadsheets object."""
     creds = None
@@ -310,70 +286,16 @@ def isAdmin(spreadsheetApp, discord_user_id):
 
 
 def findEsperColumn(spreadsheetApp, user_name, search_text):
-    """ Return the column (A1 notation value) and fancy-printed name of the esper for the given user's esper.
-
-    If the esper can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-    Search works as follows:
-    1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
-    2. Else, if there is exactly one esper whose case-insensitive name starts with the specified search_text, it is returned.
-    3. Else, if there is exactly one esper whose case-insensitive name contains all of the words in the specified search_text, it is returned.
-    4. Else, an exception is raised.
-    """
-    # Read the esper names row. Esper names are on row 2.
-    range_name = safeWorksheetName(user_name) + '!2:2'
-    esper_name_rows = None
-    esper_name = normalizeName(search_text)
+    """Performs a fuzzy lookup for an esper, returning the column (in A1 notation) and the text from within the one matched cell."""
     try:
-        values = spreadsheetApp.values().get(
-            spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
-        esper_name_rows = values.get('values', [])
-        if not esper_name_rows:
-            raise Exception('')
-    except:
+        return fuzzyFindColumn(spreadsheetApp, ESPER_RESONANCE_SPREADSHEET_ID, user_name, search_text, "2")
+    except AmbiguousSearchException as ambiguous:
         # pylint: disable=raise-missing-from
-        raise DiscordSafeException(
-            'Esper resonance tracking info not found for user {0}'.format(user_name)) # deliberately low on details as this is replying in Discord.
+        raise DiscordSafeException(ambiguous.message)
+    except NoResultsException as noresults:
+        # pylint: disable=raise-missing-from
+        raise DiscordSafeException(noresults.message)
 
-    # Search for a match and return when found.
-    fuzzy_matches = []
-    prefix_matches = []
-    exact_match_string = None
-    if search_text.startswith('"') and search_text.endswith('"'):
-        exact_match_string = (search_text[1:-1])
-    for esper_name_row in esper_name_rows:
-        column_count = 0
-        for pretty_name in esper_name_row:
-            column_count += 1
-            if exact_match_string and (pretty_name.lower() == exact_match_string.lower()):
-                esper_column_A1 = toA1(column_count)
-                return (esper_column_A1, pretty_name)
-            if normalizeName(pretty_name).startswith(esper_name):
-                esper_column_A1 = toA1(column_count)
-                prefix_matches.append((esper_column_A1, pretty_name))
-            if fuzzyMatches(pretty_name, search_text):
-                esper_column_A1 = toA1(column_count)
-                fuzzy_matches.append((esper_column_A1, pretty_name))
-    if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
-        raise DiscordSafeException(
-            'No esper matching text ```{0}``` is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
-    if len(prefix_matches) == 1: # Prefer prefix match.
-        return prefix_matches[0]
-    if len(fuzzy_matches) == 1: # Fall back to fuzzy match
-        return fuzzy_matches[0]
-    all_matches = set()
-    all_matches.update(prefix_matches)
-    all_matches.update(fuzzy_matches)
-    all_matches_string = ""
-    all_matches = list(all_matches)
-    max_results = min(5, len(all_matches))
-    for index in range(0, max_results):
-        all_matches_string += all_matches[index][1]
-        if index < max_results - 1:
-            all_matches_string += ", "
-    raise DiscordSafeException(
-        'Multiple espers matched the text: ```{0}``` Please make your text more specific and try again. '\
-        'For an exact match, enclose your text in double quotes. '\
-        'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
 
 def findUnitRow(spreadsheetApp, user_name, search_text):
