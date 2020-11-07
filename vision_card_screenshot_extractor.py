@@ -9,8 +9,6 @@ import pytesseract
 import requests # for downloading images
 from PIL import Image
 
-VISION_CARD_MAINSTAT_PATTERN = re.compile(r'^(?P<statname>[a-zA-Z]+)\s+(?P<statvalue>[0-9]+)$')
-
 # Ignore any party ability that is a string shorter than this length, usually
 # garbage from OCR gone awry.
 MIN_PARTY_ABILITY_STRING_LENGTH_SANITY = 4
@@ -42,7 +40,7 @@ def downloadScreenshotFromUrl(url):
     except Exception as e:
         print(str(e))
         # pylint: disable=raise-missing-from
-        raise Exception('Error while downloading or converting image: ' + url) # deliberately low on details as this is replying in Discord.
+        raise Exception('Error while downloading or converting image: ' + url) # deliberately low on details as this may be surfaced online.
 
 def extractRawTextFromVisionCard(vision_card_image):
     """Get the raw, unstructured text from a vision card (basically the raw OCR dump string)."""
@@ -110,22 +108,137 @@ def extractRawTextFromVisionCard(vision_card_image):
     extractedText = pytesseract.image_to_string(converted_final_ocr_input_image)
     return extractedText
 
-def extractStat(rawStatString):
-    """Return a tuple of (stat name, stat value) from a raw OCR'd string"""
-    match = VISION_CARD_MAINSTAT_PATTERN.match(rawStatString)
-    if not match:
-        raise Exception('No stat found in text: "{0}"'.format(rawStatString))
-    statname = match.group('statname').upper()
-    statvalue = int(match.group('statvalue'))
-    return (statname, statvalue)
+def bindStats(stat_tuples_list, vision_card):
+    """Binds 0 or more (stat_name, stat_value) tuples from the specified list to the specified vision card."""
+    for stat_tuple in stat_tuples_list:
+        bindStat(stat_tuple[0], stat_tuple[1], vision_card)
+
+def bindStat(stat_name, stat_value, vision_card):
+    """Binds the value of the stat having the specified name to the specified vision card.
+
+    Raises an exception if the stat name does not conform to any of the standard stat names.
+    """
+    stat_name = stat_name.upper()
+    if stat_name == 'COST':
+        vision_card.Cost = stat_value
+    elif stat_name == 'HP':
+        vision_card.HP = stat_value
+    elif stat_name == 'DEF':
+        vision_card.DEF = stat_value
+    elif stat_name == 'TP':
+        vision_card.TP = stat_value
+    elif stat_name == 'SPR':
+        vision_card.SPR = stat_value
+    elif stat_name == 'AP':
+        vision_card.AP = stat_value
+    elif stat_name == 'DEX':
+        vision_card.DEX = stat_value
+    elif stat_name == 'ATK':
+        vision_card.ATK = stat_value
+    elif stat_name == 'AGI':
+        vision_card.AGI = stat_value
+    elif stat_name == 'MAG':
+        vision_card.MAG = stat_value
+    elif stat_name == 'LUCK':
+        vision_card.Luck = stat_value
+    elif stat_name.startswith('PARTY ABILITY'):
+        vision_card.PartyAbility = stat_value
+    elif stat_name.startswith('BESTOWED EFFECTS'):
+        vision_card.BestowedEffects = stat_value
+    else:
+        raise Exception('Unknown stat name: "{0}"'.format(stat_name))
+
+def intOrNone(rawValueString):
+    """Parse a raw value string and return either the integer it represents, or None if it does not represent an integer."""
+    try:
+        return int(rawValueString, 10)
+    except ValueError:
+        return None
+
+def fuzzyStatExtract(raw_line):
+    """ Try to permissively parse a line of stats that might include garbage.
+
+    The only assumption is that the text for the NAME of the stat has been correctly parsed.
+    Numbers that are trash (e.g. a greater-than sign, a non-ascii character, etc) will be normalized
+    to None. The return is a list of tuples of (stat name, stat value).
+
+    Note that it is still possible for this method to return trash if the input is mangled in new
+    and terrifying ways, such as there being spaces stuck inside of words, or OCR garbage that gets
+    misinterpreted as numbers where there should have been blank space or a hyphen, etc.
+
+    Most of the common cases are all handled below specifically, and this should account for the
+    vast majority of text encountered. Any case that can't be normalized will raise an exception.
+    """
+    # Strip whitespace from the sides, upper-case, and then split on whitespace.
+    substrings = raw_line.upper().strip().split()
+    num_substrings = len(substrings)
+
+    # There are only a few possibilities, and they depend on the length of the substrings array
+    # In all cases the first word must be nothing but letters.
+    just_alphas = re.compile(r'^(?P<stat_name>[a-zA-Z]+)$')
+    if not just_alphas.match(substrings[0]):
+        raise Exception('First word must consist of only letters')
+
+    # Length 1: Just a name, with no number (implies value is nothing)
+    if num_substrings == 1:
+        return [(substrings[0], None)] # example: "Cost -"
+
+    # Now the possibility of numbers also exists.
+    just_numbers = re.compile(r'^(?P<stat_value>[0-9]+)$')
+
+    # Length 2:
+    # Case 2.1: A name and an integer value (one valid tuple)
+    # Case 2.2: Two names and no integer values (OCR lost the first and second value)
+    # Case 2.3: A name and garbage (OCR misread the second value)
+    if num_substrings == 2:
+        if just_numbers.match(substrings[1]): # Case 2.1
+            return [(substrings[0], intOrNone(substrings[1]))]
+        if just_alphas.match(substrings[1]): # Case 2.2
+            return [(substrings[0], None), (substrings[1], None)] # example "ATK - AGI -"
+        return [(substrings[0], None)] # case 2.3
+
+    # Length 3:
+    # Case 3.1: A name, an integer, and another name (OCR lost the second value)
+    # Case 3.2: A name, a name, and a value (OCR lost the first value)
+    # Case 3.3: A name, a name, and garbage (OCR lost the first value and misread the second value)
+    # Case 3.4: A name, garbage, and another name (OCR misread the first value and lost the second value)
+    if num_substrings == 3:
+        if just_numbers.match(substrings[1]) and just_numbers.match(substrings[2]): # Case 3.1
+            return [(substrings[0], intOrNone(substrings[1])), (substrings[2], None)]
+        if just_alphas.match(substrings[1]) and just_numbers.match(substrings[2]): # Case 3.2
+            return [(substrings[0], None), (substrings[1], intOrNone(substrings[2]))]
+        if just_alphas.match(substrings[1]): # Case 3.3
+            return [(substrings[0], None), (substrings[1], None)]
+        if just_alphas.match(substrings[2]): # Case 3.4
+            return [(substrings[0], None), (substrings[2], None)]
+
+    # Length 4:
+    # Case 4.1: A name, an integer, another name, and an integer (happy case)
+    # Case 4.2: A name, an integer, another name, and garbage (OCR lost the final value)
+    # Case 4.3: A name, another name, anything... (uncecoverable garbage: OCR has got more than one value after the second name)
+    # Case 4.4: A name, garbage, another name, and an integer (OCR misread the first value)
+    # Case 4.5: A name, garbage, another name, and garbage (OCR misread the final value)
+    if num_substrings == 4:
+        if just_numbers.match(substrings[1]) and just_alphas.match(substrings[2]) and just_numbers.match(substrings[3]): # Case 4.1 (Happy case)
+            return [(substrings[0], intOrNone(substrings[1])), (substrings[2], intOrNone(substrings[3]))]
+        if just_numbers.match(substrings[1]) and just_alphas.match(substrings[2]): # Case 4.2
+            return [(substrings[0], intOrNone(substrings[1])), (substrings[2], None)]
+        if just_alphas.match(substrings[1]): # Case 4.3
+            raise Exception('Malformed input')
+        if just_alphas.match(substrings[2]) and just_numbers.match(substrings[3]): # Case 4.4
+            return [(substrings[0], None), (substrings[2], intOrNone(substrings[3]))]
+        if just_alphas.match(substrings[2]): # Case 4.5
+            return [(substrings[0], None), (substrings[2], None)]
+
+    # Anything else (5 groups in the split, anything that fell past 4.5 above, etc) cannot be handled. Give up.
+    raise Exception('Malformed input')
 
 def extractNiceTextFromVisionCard(vision_card_image):
     """Fully process and extract structured, well-defined text from a Vision Card image."""
-    raw = extractRawTextFromVisionCard(vision_card_image)
     # After the first major vision card update, it became possible for additional stats to be
     # boosted by vision cards. Thus the raw text changed, and now has a more complex form.
-    # And example of the raw text is below:
-    #
+    # An example of the raw text is below, note that the order is fixed and should not vary:
+    # ---- BEGIN RAW DUMP ----
     # Cost 50
     # HP 211 DEF -
     # TP - SPR -
@@ -140,28 +253,30 @@ def extractNiceTextFromVisionCard(vision_card_image):
     #
     # Acquired JP Up 50%
     #
+    # Awakening Bonus Resistance Display
+    # ---- END RAW DUMP ----
     # Note that the "Cau" in "Party Ability Cau" is garbage from the icon that was added to the
     # vision card display showing the type of boost that the text described. Additionally, the
     # text is surrounded by garbage both before the "Cost 50" and after the "Acquired JP Up 50%"
     # due to (on top) the level gauge / star rating and (on bottom) awakening bonus / resistance
     # display buttons.
     #
-    # Thus text processing starts at the line that starts with "Cost" and finishes after the
-    # first non-blank line that follows the line that starts with "Bestowed EFfects".
+    # Also, Bestowed Effects can contain multiple lines. Each line is a different effect.
+    #
+    # Thus text processing starts at the line that starts with "Cost" and finishes at the line that
+    # starts with "Awakening Bonus"
 
-    print('raw text from card:' + raw)
+    # A state machine will be used to accumulate the necessary strings for processing.
     AT_START = 0
-    IN_BESTOWED_EFFECTS = 1
-    IN_PARTY_ABILITY = 2
+    IN_PARTY_ABILITY = 1
+    IN_BESTOWED_EFFECTS = 2
     DONE = 3
-
     progress = AT_START
-
-    found_hp = None
-    found_atk = None
-    found_mag = None
-    bestowed_effects = []
-    party_ability = None
+    result = VisionCard()
+    raw = extractRawTextFromVisionCard(vision_card_image)
+    print('raw text from card:' + raw)
+    bestowed_effects_buffer = []
+    safe_bestowed_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
 
     for line in raw.splitlines(keepends=False):
         line = line.strip()
@@ -169,37 +284,29 @@ def extractNiceTextFromVisionCard(vision_card_image):
             continue
         upper = line.upper()
         if progress == AT_START:
-            if upper.startswith('HP'):
-                found_hp = extractStat(line)
-            elif upper.startswith('ATK'):
-                found_atk = extractStat(line)
-            elif upper.startswith('MAG'):
-                found_mag = extractStat(line)
-            elif upper.startswith('BESTOW'):
-                progress = IN_BESTOWED_EFFECTS
-            else:
-                pass
-        elif progress == IN_BESTOWED_EFFECTS:
-            if upper.startswith('PARTY'):
+            if upper.startswith('COST') or upper.startswith('HP') or upper.startswith('TP') or upper.startswith('AP') or upper.startswith('ATK') or upper.startswith('MAG'):
+                bindStats(fuzzyStatExtract(line), result)
+            elif upper.startswith('PARTY'):
                 progress = IN_PARTY_ABILITY
-            else:
-                bestowed_effects.append(line)
         elif progress == IN_PARTY_ABILITY:
             if len(upper) < MIN_PARTY_ABILITY_STRING_LENGTH_SANITY:
-                pass
-            if upper.startswith('AWAKENING'):
+                pass # Ignore trash, such as the "Cau" in the example above, if it appears on its own line.
+            if upper.startswith('BESTOWED EFFECTS'):
+                progress = IN_BESTOWED_EFFECTS
+            else:
+                if result.PartyAbility is not None:
+                    raise Exception('Found multiple party ability lines in vision card') # should not happen, party ability is only one line of text
+                result.PartyAbility = line
+        elif progress == IN_BESTOWED_EFFECTS:
+            if upper.startswith('AWAKENING BONUS'):
                 progress = DONE
             else:
-                party_ability = line
-                progress = DONE
+                # The Bestowed Effects section often ends with garbage when the OCR hits the edge of the box and gets confused.
+                if safe_bestowed_effects_regex.match(line):
+                    bestowed_effects_buffer.append(line)
         elif progress == DONE:
             break
-    result = {}
-    result['HP'] = found_hp[1]
-    result['MAG'] = found_mag[1]
-    result['ATK'] = found_atk[1]
-    result['Bestowed Effects'] = bestowed_effects
-    result['Party Ability'] = party_ability
+    result.BestowedEffects = '\n'.join(bestowed_effects_buffer)
     return result
 
 def invokeStandalone(path):

@@ -874,17 +874,22 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
 
 
-def prettyPrintVisionCardOcrText(structured):
+def prettyPrintVisionCardOcrText(card):
     """Generate a safe response for a Vision Card message from discord, or None if no response is needed."""
     result = 'Stats:\n'
-    result += '  HP: ' + str(structured['HP']) + '\n'
-    result += '  ATK: ' + str(structured['ATK']) + '\n'
-    result += '  MAG: ' + str(structured['MAG']) + '\n'
-    result += 'Bestowed Effects:\n'
-    for effect in structured['Bestowed Effects']:
-        result += '  ' + effect + '\n'
-    result += 'Party Ability:\n'
-    result += '  ' + structured['Party Ability']
+    result += '  Cost: ' + str(card.Cost) + '\n'
+    result += '  HP: ' + str(card.HP) + '\n'
+    result += '  DEF: ' + str(card.DEF) + '\n'
+    result += '  TP: ' + str(card.TP) + '\n'
+    result += '  SPR: ' + str(card.SPR) + '\n'
+    result += '  AP: ' + str(card.AP) + '\n'
+    result += '  DEX: ' + str(card.DEX) + '\n'
+    result += '  ATK: ' + str(card.ATK) + '\n'
+    result += '  AGI: ' + str(card.AGI) + '\n'
+    result += '  MAG: ' + str(card.MAG) + '\n'
+    result += '  Luck: ' + str(card.Luck) + '\n'
+    result += 'Party Ability: ' + card.PartyAbility + '\n'
+    result += 'Bestowed Effects:\n' + card.BestowedEffects
     return result
 
 
@@ -1043,8 +1048,8 @@ def getDiscordSafeResponse(message):
         url = message.attachments[0].url
         print('vision card ocr request from user %s#%s, for url %s' % (from_name, from_discrim, url))
         screenshot = downloadScreenshotFromUrl(url)
-        extractedText = extractNiceTextFromVisionCard(screenshot)
-        responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(extractedText))
+        vision_card = extractNiceTextFromVisionCard(screenshot)
+        responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
         return (responseText, None)
 
     if message.content.lower().startswith('!help'):
