@@ -15,6 +15,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from PIL import Image
 
+from worksheet_utils import fuzzyMatches, fuzzyFindRow, normalizeName, safeWorksheetName, AmbiguousSearchException, NoResultsException
 from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
 
 # -----------------------------------------------------------------------------
@@ -183,13 +184,6 @@ def readConfig():
             print('discord bot token: [redacted, but read successfully]')
 
 
-def safeWorksheetName(sheet_name):
-    """Ensures that the name of a worksheet is safe to use."""
-    if "'" in sheet_name:
-        raise DiscordSafeException('Names must not contain apostrophes.')
-    return "'" + sheet_name + "'"
-
-
 def maybeSplitMessageNicely(message_text):
     """Returns a list of message fragments, all under DISCORD_MESSAGE_LENGTH_LIMIT in size.
 
@@ -239,10 +233,6 @@ def fromA1(a1Value):
         result = (26 * upper) + result
     return result
 
-
-def normalizeName(fancy_name):
-    """Normalize a name, lowercasing it and replacing spaces with hyphens."""
-    return fancy_name.strip().lower().replace(' ', '-')
 
 def openSpreadsheets():
     """Open the spreadsheet and return a tuple of the service object and the spreadsheets object."""
@@ -386,83 +376,16 @@ def findEsperColumn(spreadsheetApp, user_name, search_text):
         'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
 
-def fuzzyMatches(sheet_text, search_text):
-    """Performs a fuzzy match within the specified text.
-
-    Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
-    resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
-    match and the method returns True; otherwise, returns False.
-    """
-    words = search_text.split() # by default splits on all whitespace PRESERVING punctuation, which is important...
-    for word in words:
-        if not word.lower() in sheet_text.lower():
-            return False
-    return True
-
-
 def findUnitRow(spreadsheetApp, user_name, search_text):
-    """Return the row number (integer value, 1-based) and fancy-printed name of the unit for the given user's unit.
-
-    If the unit can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-    Search works as follows:
-    1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
-    2. Else, if there is exactly one unit whose case-insensitive name starts with the specified search_text, it is returned.
-    3. Else, if there is exactly one unit whose case-insensitive name contains all of the words in the specified search_text, it is returned.
-    4. Else, an exception is raised.
-    """
-
-    # Unit names are on column B.
-    range_name = safeWorksheetName(user_name) + '!B:B'
-    unit_name_rows = None
-    unit_name = normalizeName(search_text)
+    """Performs a fuzzy lookup for a unit, returning the row number and the text from within the one matched cell."""
     try:
-        values = spreadsheetApp.values().get(
-            spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
-        unit_name_rows = values.get('values', [])
-        if not unit_name_rows:
-            raise Exception('')
-    except:
+        return fuzzyFindRow(spreadsheetApp, ESPER_RESONANCE_SPREADSHEET_ID, user_name, search_text, "B")
+    except AmbiguousSearchException as ambiguous:
         # pylint: disable=raise-missing-from
-        raise DiscordSafeException(
-            'Esper resonance tracking info not found for user {0}'.format(user_name))  # deliberately low on details as this is replying in Discord.
-
-    fuzzy_matches = []
-    prefix_matches = []
-    row_count = 0
-    exact_match_string = None
-    if search_text.startswith('"') and search_text.endswith('"'):
-        exact_match_string = (search_text[1:-1])
-    for unit_name_row in unit_name_rows:
-        row_count += 1
-        for pretty_name in unit_name_row:
-            if exact_match_string and (pretty_name.lower() == exact_match_string.lower()):
-                return (row_count, pretty_name)
-            if normalizeName(pretty_name).startswith(unit_name):
-                prefix_matches.append((row_count, pretty_name))
-            if fuzzyMatches(pretty_name, search_text):
-                fuzzy_matches.append((row_count, pretty_name))
-    if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
-        raise DiscordSafeException(
-            'No unit matching text ```{0}``` is being tracked by user {1}, perhaps they do not have it yet.'.format(search_text, user_name))
-    if len(prefix_matches) == 1: # Prefer prefix match.
-        return prefix_matches[0]
-    if len(fuzzy_matches) == 1: # Fall back to fuzzy match
-        return fuzzy_matches[0]
-    all_matches = set()
-    all_matches.update(prefix_matches)
-    all_matches.update(fuzzy_matches)
-    all_matches_string = ""
-    all_matches = list(all_matches)
-    max_results = min(5, len(all_matches))
-    for index in range(0, max_results):
-        all_matches_string += all_matches[index][1]
-        if index < max_results - 1:
-            all_matches_string += ", "
-    raise DiscordSafeException(
-        'Multiple units matched the text: ```{0}``` Please make your text more specific and try again. '\
-        'For an exact match, enclose your text in double quotes. '\
-        'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
-
+        raise DiscordSafeException(ambiguous.message)
+    except NoResultsException as noresults:
+        # pylint: disable=raise-missing-from
+        raise DiscordSafeException(noresults.message)
 
 def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, columnA1, sandbox):
     """Add a new column for an esper.
