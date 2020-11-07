@@ -1083,7 +1083,7 @@ async def getDiscordSafeResponse(message):
             buffer.seek(0)
             temp_file = discord.File(buffer, filename="Intermediate OCR Debug.png")
             await message.channel.send("Intermediate OCR Debug", file=temp_file)
-        responseText = '<@{0}>: Extracted from vision card:\n{1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
+        responseText = '<@{0}>: {1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
         return (responseText, None)
 
     if message.content.lower().startswith('!help'):
