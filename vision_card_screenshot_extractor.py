@@ -1,5 +1,7 @@
+"""A module for extracting structured data from Vision Card screenshots."""
 import re
 import sys
+from dataclasses import dataclass
 import cv2
 import imutils
 import numpy
@@ -13,6 +15,24 @@ VISION_CARD_MAINSTAT_PATTERN = re.compile(r'^(?P<statname>[a-zA-Z]+)\s+(?P<statv
 # garbage from OCR gone awry.
 MIN_PARTY_ABILITY_STRING_LENGTH_SANITY = 4
 
+# dataclass
+@dataclass
+class VisionCard:
+    """Contains all the raw stats for a vision card."""
+    Cost: int = 0
+    HP: int = 0
+    DEF: int = 0
+    TP: int = 0
+    SPR: int = 0
+    AP: int = 0
+    DEX: int = 0
+    ATK: int = 0
+    AGI: int = 0
+    MAG: int = 0
+    Luck: int = 0
+    PartyAbility: str = None
+    BestowedEffects: str = None
+
 def downloadScreenshotFromUrl(url):
     """Download a vision card screenshot from the specified URL and return as an OpenCV image object."""
     try:
@@ -21,7 +41,8 @@ def downloadScreenshotFromUrl(url):
         return opencvImage
     except Exception as e:
         print(str(e))
-        raise Exception('Error while downloading or converting image: ' + url)
+        # pylint: disable=raise-missing-from
+        raise Exception('Error while downloading or converting image: ' + url) # deliberately low on details as this is replying in Discord.
 
 def extractRawTextFromVisionCard(vision_card_image):
     """Get the raw, unstructured text from a vision card (basically the raw OCR dump string)."""
@@ -101,6 +122,33 @@ def extractStat(rawStatString):
 def extractNiceTextFromVisionCard(vision_card_image):
     """Fully process and extract structured, well-defined text from a Vision Card image."""
     raw = extractRawTextFromVisionCard(vision_card_image)
+    # After the first major vision card update, it became possible for additional stats to be
+    # boosted by vision cards. Thus the raw text changed, and now has a more complex form.
+    # And example of the raw text is below:
+    #
+    # Cost 50
+    # HP 211 DEF -
+    # TP - SPR -
+    # AP - DEX _
+    # ATK 81 AGI -
+    # MAG 56 Luck -
+    # Party Ability Cau
+    #
+    # ATK Up 30%
+    #
+    # Bestowed Effects
+    #
+    # Acquired JP Up 50%
+    #
+    # Note that the "Cau" in "Party Ability Cau" is garbage from the icon that was added to the
+    # vision card display showing the type of boost that the text described. Additionally, the
+    # text is surrounded by garbage both before the "Cost 50" and after the "Acquired JP Up 50%"
+    # due to (on top) the level gauge / star rating and (on bottom) awakening bonus / resistance
+    # display buttons.
+    #
+    # Thus text processing starts at the line that starts with "Cost" and finishes after the
+    # first non-blank line that follows the line that starts with "Bestowed EFfects".
+
     print('raw text from card:' + raw)
     AT_START = 0
     IN_BESTOWED_EFFECTS = 1

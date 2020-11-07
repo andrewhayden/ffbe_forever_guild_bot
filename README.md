@@ -8,10 +8,14 @@ Helpful Links:
 Steps to prep your environment to work on or run this bot:
 * sudo apt-get update
 * sudo apt-get install python3-distutils
+* sudo apt-get install python3.7-venv
+* sudo apt-get install libgl1-mesa-glx
 * curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-* sudo python3 get-pip.py
-* python3 -m pip install -U discord.py
-* sudo apt-get install python3-venv
+* sudo python3.7 get-pip.py
+* python3.7 -m venv bot-env
+* source bot-env/bin/activate
+* pip install --upgrade pip
+* pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib pytesseract numpy imutils opencv-python opencv-contrib-python discord.py
 
 After checkout, and whenever you want to run the bot:
 * python3 -m venv bot-env

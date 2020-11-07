@@ -276,7 +276,8 @@ def findAssociatedTab(spreadsheetApp, discord_user_id):
         if not rows:
             raise Exception('')
     except:
-        raise DiscordSafeException('Spreadsheet misconfigured')
+        # pylint: disable=raise-missing-from
+        raise DiscordSafeException('Spreadsheet misconfigured') # deliberately low on details as this is replying in Discord.
 
     for row in rows:
         if str(row[0]) == str(discord_user_id):
@@ -297,7 +298,8 @@ def isAdmin(spreadsheetApp, discord_user_id):
         if not rows:
             raise Exception('')
     except:
-        raise DiscordSafeException('Spreadsheet misconfigured')
+        # pylint: disable=raise-missing-from
+        raise DiscordSafeException('Spreadsheet misconfigured') # deliberately low on details as this is replying in Discord.
 
     for row in rows:
         if str(row[0]) == str(discord_user_id):
@@ -329,8 +331,9 @@ def findEsperColumn(spreadsheetApp, user_name, search_text):
         if not esper_name_rows:
             raise Exception('')
     except:
+        # pylint: disable=raise-missing-from
         raise DiscordSafeException(
-            'Esper resonance tracking info not found for user {0}'.format(user_name))
+            'Esper resonance tracking info not found for user {0}'.format(user_name)) # deliberately low on details as this is replying in Discord.
 
     # Search for a match and return when found.
     fuzzy_matches = []
@@ -410,8 +413,9 @@ def findUnitRow(spreadsheetApp, user_name, search_text):
         if not unit_name_rows:
             raise Exception('')
     except:
+        # pylint: disable=raise-missing-from
         raise DiscordSafeException(
-            'Esper resonance tracking info not found for user {0}'.format(user_name))
+            'Esper resonance tracking info not found for user {0}'.format(user_name))  # deliberately low on details as this is replying in Discord.
 
     fuzzy_matches = []
     prefix_matches = []
@@ -753,8 +757,9 @@ def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_strin
     try:
         resonance_int = int(resonance_numeric_string)
     except:
+        # pylint: disable=raise-missing-from
         raise DiscordSafeException(
-            'Invalid resonance level: "{0}"'.format(resonance_numeric_string))
+            'Invalid resonance level: "{0}"'.format(resonance_numeric_string)) # deliberately low on details as this is replying in Discord.
     if (resonance_int < 0) or (resonance_int > 10):
         raise DiscordSafeException(
             'Resonance must be a value in the range 0 - 10')
