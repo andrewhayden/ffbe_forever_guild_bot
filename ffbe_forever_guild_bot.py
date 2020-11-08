@@ -1,5 +1,7 @@
 """A bot for managing War of the Visions guild information via Discord."""
 from __future__ import print_function
+from __future__ import annotations
+from dataclasses import dataclass
 import io
 import logging
 import pickle
@@ -8,6 +10,7 @@ import pprint  # for pretty-printing JSON during debugging, etc
 import json
 import os.path
 import re
+from re import Match
 
 import discord
 
@@ -230,6 +233,30 @@ def openSpreadsheets():
     spreadsheetApp = service.spreadsheets() # pylint: disable=no-member
     return spreadsheetApp
 
+@dataclass
+class CommandContextInfo:
+    """Context information for the command that is being executing"""
+    from_name: str = None
+    from_id: str = None
+    from_discrim: str = None
+    esper_resonance_manager: EsperResonanceManager = None
+    command_match: Match = None
+
+    def shallowCopy(self) -> CommandContextInfo:
+        result = CommandContextInfo()
+        result.from_name = self.from_name
+        result.from_id = self.from_id
+        result.from_name = self.from_name
+        return result
+
+    def withEsperResonanceManager(self, esper_resonance_manager: EsperResonanceManager) -> CommandContextInfo:
+        self.esper_resonance_manager = esper_resonance_manager
+        return self
+
+    def withMatch(self, the_match: Match) -> CommandContextInfo:
+        """Assign the specified match and return a reference to this object."""
+        self.command_match = the_match
+        return self
 
 async def getDiscordSafeResponse(message):
     """Process the request and produce a response."""
@@ -250,6 +277,11 @@ async def getDiscordSafeResponse(message):
     from_id = message.author.id
     from_discrim = message.author.discriminator
 
+    context = CommandContextInfo()
+    context.from_discrim = from_discrim
+    context.from_id = from_id
+    context.from_name = from_name
+
     # TODO: Hold this reference longer?
     esper_resonance_manager = EsperResonanceManager(
         ESPER_RESONANCE_SPREADSHEET_ID,
@@ -257,32 +289,13 @@ async def getDiscordSafeResponse(message):
         ACCESS_CONTROL_SPREADSHEET_ID,
         openSpreadsheets())
 
+    # pylint: disable=multiple-statements
     match = RES_FETCH_SELF_PATTERN.match(message.content.lower())
-    if match:
-        unit_name = match.group(1).strip()
-        esper_name = match.group(2).strip()
-        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, from_name, unit_name, esper_name))
-        resonance, pretty_unit_name, pretty_esper_name = esper_resonance_manager.readResonance(None, from_id, unit_name, esper_name)
-        responseText = '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
-        return (responseText, None)
-
+    if match: return handleTargetedResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
     match = RES_LIST_SELF_PATTERN.match(message.content.lower())
-    if match:
-        target_name = match.group('target_name').strip()
-        print('resonance list fetch from user %s#%s, for target %s' % (from_name, from_discrim, target_name))
-        pretty_name, resonance_listing = esper_resonance_manager.readResonanceList(None, from_id, target_name)
-        responseText = '<@{0}>: resonance listing for {1}:\n{2}'.format(from_id, pretty_name, resonance_listing)
-        return (responseText, None)
-
+    if match: return handleGeneralResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
     match = RES_FETCH_OTHER_PATTERN.match(message.content.lower())
-    if match:
-        target_user_name = match.group(1).strip()
-        unit_name = match.group(2).strip()
-        esper_name = match.group(3).strip()
-        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, target_user_name, unit_name, esper_name))
-        resonance, pretty_unit_name, pretty_esper_name = esper_resonance_manager.readResonance(target_user_name, None, unit_name, esper_name)
-        responseText = '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
-        return (responseText, None)
+    if match: return handleTargetedResonanceLookupForOtherUser(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
     match = RES_SET_PATTERN.match(message.content.lower())
     if match:
@@ -417,6 +430,35 @@ async def getDiscordSafeResponse(message):
 
     return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. '\
             'Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
+
+def handleTargetedResonanceLookupForSelf(context: CommandContextInfo) -> (str, str):
+    """Handle !res or !resonance command for self-lookup of a specific (unit, esper) tuple."""
+    unit_name = context.command_match.group(1).strip()
+    esper_name = context.command_match.group(2).strip()
+    print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (
+        context.from_name, context.from_discrim, context.from_name, unit_name, esper_name))
+    resonance, pretty_unit_name, pretty_esper_name = context.esper_resonance_manager.readResonance(None, context.from_id, unit_name, esper_name)
+    responseText = '<@{0}>: {1}/{2} has resonance {3}'.format(context.from_id, pretty_unit_name, pretty_esper_name, resonance)
+    return (responseText, None)
+
+def handleTargetedResonanceLookupForOtherUser(context: CommandContextInfo) -> (str, str):
+    """Handle !res or !resonance command for lookup of a specific (unit, esper) tuple for a different user."""
+    target_user_name = context.command_match.group(1).strip()
+    unit_name = context.command_match.group(2).strip()
+    esper_name = context.command_match.group(3).strip()
+    print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (
+        context.from_name, context.from_discrim, target_user_name, unit_name, esper_name))
+    resonance, pretty_unit_name, pretty_esper_name = context.esper_resonance_manager.readResonance(target_user_name, None, unit_name, esper_name)
+    responseText = '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(context.from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
+    return (responseText, None)
+
+def handleGeneralResonanceLookupForSelf(context: CommandContextInfo) -> (str, str):
+    """Handle !res or !resonance command for self-lookup of all resonance for a given unit or esper."""
+    target_name = context.command_match.group('target_name').strip()
+    print('resonance list fetch from user %s#%s, for target %s' % (context.from_name, context.from_discrim, target_name))
+    pretty_name, resonance_listing = context.esper_resonance_manager.readResonanceList(None, context.from_id, target_name)
+    responseText = '<@{0}>: resonance listing for {1}:\n{2}'.format(context.from_id, pretty_name, resonance_listing)
+    return (responseText, None)
 
 if __name__ == "__main__":
     readConfig()
