@@ -29,7 +29,7 @@ class EsperResonanceManager:
         """Performs a fuzzy lookup for a unit, returning the row number and the text from within the one matched cell."""
         return WorksheetUtils.fuzzyFindRow(self.spreadsheet_app, document_id, user_name, search_text, "B")
 
-    def addEsperColumn(self, discord_user_id: str, esper_name: str, esper_url: str, left_or_right_of: str, columnA1: str, sandbox: bool):
+    def addEsperColumn(self, user_id: str, esper_name: str, esper_url: str, left_or_right_of: str, columnA1: str, sandbox: bool):
         """Add a new column for an esper.
 
         The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
@@ -44,7 +44,7 @@ class EsperResonanceManager:
         else:
             raise ExposableException('Incorrect parameter for position of new column, must be "left-of" or "right-of": ' + left_or_right_of)
 
-        if not AdminUtils.isAdmin(self.spreadsheet_app, self.access_control_spreadsheet_id, discord_user_id):
+        if not AdminUtils.isAdmin(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id):
             raise ExposableException('You do not have permission to add an esper.')
 
         target_spreadsheet_id = None
@@ -108,7 +108,7 @@ class EsperResonanceManager:
         return
 
 
-    def addUnitRow(self, discord_user_id: str, unit_name: str, unit_url: str, above_or_below: str, row1Based: str, sandbox: str):
+    def addUnitRow(self, user_id: str, unit_name: str, unit_url: str, above_or_below: str, row1Based: str, sandbox: str):
         """Add a new row for a unit.
 
         The above_or_below parameter needs to be either the string 'above' or 'below'. The row should be in 1-based notation,
@@ -124,7 +124,7 @@ class EsperResonanceManager:
         else:
             raise ExposableException('Incorrect parameter for position of new row, must be "above" or "below": ' + above_or_below)
 
-        if not AdminUtils.isAdmin(self.spreadsheet_app, self.access_control_spreadsheet_id, discord_user_id):
+        if not AdminUtils.isAdmin(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id):
             raise ExposableException('You do not have permission to add a unit.')
 
         target_spreadsheet_id = None
@@ -188,19 +188,19 @@ class EsperResonanceManager:
         return
 
 
-    def readResonance(self, user_name: str, discord_user_id: str, unit_name: str, esper_name: str):
+    def readResonance(self, user_name: str, user_id: str, unit_name: str, esper_name: str):
         """Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
 
-        Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
-        same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
-        right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
+        Set either the user name or the user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
+        same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the user to the
+        correct tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
         and not the data of, e.g., another user who has their old nickname.
         """
-        if (user_name is not None) and (discord_user_id is not None):
-            print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
+        if (user_name is not None) and (user_id is not None):
+            print('internal error: both user_name and user_id specified. Specify one or the other, not both.')
             raise ExposableException('Internal error')
-        if discord_user_id is not None:
-            user_name = AdminUtils.findAssociatedTab(self.spreadsheet_app, self.access_control_spreadsheet_id, discord_user_id)
+        if user_id is not None:
+            user_name = AdminUtils.findAssociatedTab(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id)
 
         esper_column_A1, pretty_esper_name = self.findEsperColumn(self.esper_resonance_spreadsheet_id, user_name, esper_name)
         unit_row, pretty_unit_name = self.findUnitRow(self.esper_resonance_spreadsheet_id, user_name, unit_name)
@@ -218,22 +218,22 @@ class EsperResonanceManager:
         return final_rows[0][0], pretty_unit_name, pretty_esper_name
 
 
-    def readResonanceList(self, user_name: str, discord_user_id: str, query_string: str):
+    def readResonanceList(self, user_name: str, user_id: str, query_string: str):
         """Read and return the pretty name of the query subject (either a unit or an esper), and resonance list for the given user.
 
-        Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
-        same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
-        right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
+        Set either the user name or the user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
+        same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the user to the
+        correct tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
         and not the data of, e.g., another user who has their old nickname.
 
         The returned list of resonances is either (unit/resonance) or (esper/resonance) tuples.
         """
 
-        if (user_name is not None) and (discord_user_id is not None):
-            print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
+        if (user_name is not None) and (user_id is not None):
+            print('internal error: both user_name and user_id specified. Specify one or the other, not both.')
             raise ExposableException('Internal error')
-        if discord_user_id is not None:
-            user_name = AdminUtils.findAssociatedTab(self.spreadsheet_app, self.access_control_spreadsheet_id, discord_user_id)
+        if user_id is not None:
+            user_name = AdminUtils.findAssociatedTab(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id)
 
         esper_column_A1 = None
         pretty_esper_name = None
@@ -297,7 +297,7 @@ class EsperResonanceManager:
                     # Grab the esper name from the top of this column, and then append the column value.
                     resonances.append(result_rows[1][colCount - 1] + ': ' + column)
 
-        # Format the list nicely for responding in Discord
+        # Format the list nicely
         resultString = ''
         for resonance in resonances:
             resultString += resonance + '\n'
@@ -305,7 +305,7 @@ class EsperResonanceManager:
         return (target_name, resultString)
 
 
-    def setResonance(self, discord_user_id: str, unit_name: str, esper_name: str, resonance_numeric_string: str, priority: str, comment: str):
+    def setResonance(self, user_id: str, unit_name: str, esper_name: str, resonance_numeric_string: str, priority: str, comment: str):
         """Set the esper resonance.
 
         Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
@@ -316,12 +316,12 @@ class EsperResonanceManager:
         except:
             # pylint: disable=raise-missing-from
             raise ExposableException(
-                'Invalid resonance level: "{0}"'.format(resonance_numeric_string)) # deliberately low on details as this is replying in Discord.
+                'Invalid resonance level: "{0}"'.format(resonance_numeric_string)) # deliberately low on details as this is replying publicly.
         if (resonance_int < 0) or (resonance_int > 10):
             raise ExposableException(
                 'Resonance must be a value in the range 0 - 10')
 
-        user_name = AdminUtils.findAssociatedTab(self.spreadsheet_app, self.access_control_spreadsheet_id, discord_user_id)
+        user_name = AdminUtils.findAssociatedTab(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id)
 
         esper_column_A1, pretty_esper_name = self.findEsperColumn(self.esper_resonance_spreadsheet_id, user_name, esper_name)
         unit_row, pretty_unit_name = self.findUnitRow(self.esper_resonance_spreadsheet_id, user_name, unit_name)
