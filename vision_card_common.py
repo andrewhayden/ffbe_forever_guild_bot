@@ -33,3 +33,23 @@ class VisionCard:
     info_debug_raw_text: str = None
     successfully_extracted: bool = False
     error_messages: List[str] = field(default_factory=list)
+
+    def prettyPrint(self):
+        """Print a human-readable textual representation of a Vision Card"""
+        result = self.Name + '\n'
+        result += '  Cost: ' + str(self.Cost) + '\n'
+        result += '  HP: ' + str(self.HP) + '\n'
+        result += '  DEF: ' + str(self.DEF) + '\n'
+        result += '  TP: ' + str(self.TP) + '\n'
+        result += '  SPR: ' + str(self.SPR) + '\n'
+        result += '  AP: ' + str(self.AP) + '\n'
+        result += '  DEX: ' + str(self.DEX) + '\n'
+        result += '  ATK: ' + str(self.ATK) + '\n'
+        result += '  AGI: ' + str(self.AGI) + '\n'
+        result += '  MAG: ' + str(self.MAG) + '\n'
+        result += '  Luck: ' + str(self.Luck) + '\n'
+        result += '  Party Ability: ' + str(self.PartyAbility) + '\n'
+        result += '  Bestowed Effects:\n'
+        for bestowed_effect in self.BestowedEffects:
+            result += '    ' + bestowed_effect + '\n'
+        return result

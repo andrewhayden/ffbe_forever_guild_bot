@@ -431,6 +431,35 @@ class VisionCardOcrUtils:
         return result
 
     @staticmethod
+    def mergeDebugImages(card: VisionCard) -> Image:
+        """Merge all of the debugging images into one and return it."""
+        return VisionCardOcrUtils.stitchImages([
+            card.debug_image_step1_gray,
+            card.debug_image_step2_blurred,
+            card.debug_image_step3_thresholded,
+            card.stats_debug_image_step4_cropped_gray,
+            card.stats_debug_image_step5_cropped_gray_inverted,
+            card.stats_debug_image_step6_converted_final_ocr_input_image,
+            card.info_debug_image_step4_cropped_gray,
+            card.info_debug_image_step5_cropped_gray_inverted,
+            card.info_debug_image_step6_converted_final_ocr_input_image])
+
+    @staticmethod
+    def stitchImages(images):
+        """Combine images horizontally, into a single large image."""
+        total_width = 0
+        max_height = 0
+        for one_image in images:
+            total_width += one_image.width
+            max_height = max(max_height, one_image.height)
+        result = Image.new('RGB', (total_width, max_height))
+        left_pad = 0
+        for one_image in images:
+            result.paste(one_image, (left_pad, 0))
+            left_pad += one_image.width
+        return result
+
+    @staticmethod
     def invokeStandalone(path):
         """For local/standalone running, a method that can process an image from the filesystem or a URL."""
         vision_card_image = None

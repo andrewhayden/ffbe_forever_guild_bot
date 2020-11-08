@@ -231,27 +231,6 @@ def openSpreadsheets():
     return spreadsheetApp
 
 
-def prettyPrintVisionCardOcrText(card: VisionCard):
-    """Generate a safe response for a Vision Card message from discord, or None if no response is needed."""
-    result = card.Name + '\n'
-    result += '  Cost: ' + str(card.Cost) + '\n'
-    result += '  HP: ' + str(card.HP) + '\n'
-    result += '  DEF: ' + str(card.DEF) + '\n'
-    result += '  TP: ' + str(card.TP) + '\n'
-    result += '  SPR: ' + str(card.SPR) + '\n'
-    result += '  AP: ' + str(card.AP) + '\n'
-    result += '  DEX: ' + str(card.DEX) + '\n'
-    result += '  ATK: ' + str(card.ATK) + '\n'
-    result += '  AGI: ' + str(card.AGI) + '\n'
-    result += '  MAG: ' + str(card.MAG) + '\n'
-    result += '  Luck: ' + str(card.Luck) + '\n'
-    result += '  Party Ability: ' + str(card.PartyAbility) + '\n'
-    result += '  Bestowed Effects:\n'
-    for bestowed_effect in card.BestowedEffects:
-        result += '    ' + bestowed_effect + '\n'
-    return result
-
-
 async def getDiscordSafeResponse(message):
     """Process the request and produce a response."""
     if message.author == discord_client.user:
@@ -272,7 +251,11 @@ async def getDiscordSafeResponse(message):
     from_discrim = message.author.discriminator
 
     # TODO: Hold this reference longer?
-    esper_resonance_manager = EsperResonanceManager(ESPER_RESONANCE_SPREADSHEET_ID, SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID, ACCESS_CONTROL_SPREADSHEET_ID, openSpreadsheets())
+    esper_resonance_manager = EsperResonanceManager(
+        ESPER_RESONANCE_SPREADSHEET_ID,
+        SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID,
+        ACCESS_CONTROL_SPREADSHEET_ID,
+        openSpreadsheets())
 
     match = RES_FETCH_SELF_PATTERN.match(message.content.lower())
     if match:
@@ -409,27 +392,17 @@ async def getDiscordSafeResponse(message):
         screenshot = VisionCardOcrUtils.downloadScreenshotFromUrl(url)
         vision_card = VisionCardOcrUtils.extractVisionCardFromScreenshot(screenshot, is_ocr_debug_request)
         if is_ocr_debug_request:
-            all_images = [
-                vision_card.debug_image_step1_gray,
-                vision_card.debug_image_step2_blurred,
-                vision_card.debug_image_step3_thresholded,
-                vision_card.stats_debug_image_step4_cropped_gray,
-                vision_card.stats_debug_image_step5_cropped_gray_inverted,
-                vision_card.stats_debug_image_step6_converted_final_ocr_input_image,
-                vision_card.info_debug_image_step4_cropped_gray,
-                vision_card.info_debug_image_step5_cropped_gray_inverted,
-                vision_card.info_debug_image_step6_converted_final_ocr_input_image]
-            combined_image = stitchImages(all_images)
+            combined_image = VisionCardOcrUtils.mergeDebugImages(vision_card)
             buffer = io.BytesIO()
             combined_image.save(buffer, format='PNG')
             buffer.seek(0)
-            temp_file = discord.File(buffer, filename="Intermediate OCR Debug.png")
-            await message.channel.send("Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```".format(
+            temp_file = discord.File(buffer, filename='Intermediate OCR Debug.png')
+            await message.channel.send('Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```'.format(
                 vision_card.info_debug_raw_text,
                 vision_card.stats_debug_raw_text), file=temp_file)
 
         if vision_card.successfully_extracted is True:
-            responseText = '<@{0}>: {1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
+            responseText = '<@{0}>: {1}'.format(from_id, vision_card.prettyPrint())
         else:
             responseText = '<@{0}>: Vision card extraction has failed. You may try again with !xocr-debug for a clue about what has gone wrong'.format(from_id)
         return (responseText, None)
@@ -444,20 +417,6 @@ async def getDiscordSafeResponse(message):
 
     return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. '\
             'Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
-
-def stitchImages(images):
-    """Combine images horizontally, into a single large image."""
-    total_width = 0
-    max_height = 0
-    for one_image in images:
-        total_width += one_image.width
-        max_height = max(max_height, one_image.height)
-    result = Image.new('RGB', (total_width, max_height))
-    left_pad = 0
-    for one_image in images:
-        result.paste(one_image, (left_pad, 0))
-        left_pad += one_image.width
-    return result
 
 if __name__ == "__main__":
     readConfig()
