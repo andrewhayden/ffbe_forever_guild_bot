@@ -235,21 +235,25 @@ def openSpreadsheets():
 
 @dataclass
 class CommandContextInfo:
-    """Context information for the command that is being executing"""
-    from_name: str = None
-    from_id: str = None
-    from_discrim: str = None
+    """Context information for the command that is being executed."""
+    from_name: str = None # Convenience
+    from_id: str = None # Convenience
+    from_discrim: str = None # Convenience
+    original_message: str = None # For unusual use cases
     esper_resonance_manager: EsperResonanceManager = None
     command_match: Match = None
 
     def shallowCopy(self) -> CommandContextInfo:
+        """Make a shallow copy of this object, containing only the from_name, from_id, from_discrim and original_message fields"""
         result = CommandContextInfo()
         result.from_name = self.from_name
         result.from_id = self.from_id
         result.from_name = self.from_name
+        result.original_message = self.original_message
         return result
 
     def withEsperResonanceManager(self, esper_resonance_manager: EsperResonanceManager) -> CommandContextInfo:
+        """Assign the specified esper resonance amnager and return a reference to this object."""
         self.esper_resonance_manager = esper_resonance_manager
         return self
 
@@ -260,165 +264,72 @@ class CommandContextInfo:
 
 async def getDiscordSafeResponse(message):
     """Process the request and produce a response."""
+    # Bail out early if anything looks insane.
     if message.author == discord_client.user:
         return (None, None)
-
     if not message.content:
         return (None, None)
-
     if not message.content.startswith('!'):
         return (None, None)
-
     for ignore_pattern in ALL_IGNORE_PATTERNS:
         if ignore_pattern.match(message.content):
             return (None, None)
 
+    # Set up the context used in handling every possible command.
+    # TODO: Clean up these fields that are not part of the CommandContextInfo object.
     from_name = message.author.display_name
     from_id = message.author.id
     from_discrim = message.author.discriminator
-
     context = CommandContextInfo()
     context.from_discrim = from_discrim
     context.from_id = from_id
     context.from_name = from_name
+    context.original_message = message
 
-    # TODO: Hold this reference longer?
+    # TODO: Hold this reference longer after cleaning up the rest of the code, in an application context.
     esper_resonance_manager = EsperResonanceManager(
         ESPER_RESONANCE_SPREADSHEET_ID,
         SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID,
         ACCESS_CONTROL_SPREADSHEET_ID,
         openSpreadsheets())
 
-    # pylint: disable=multiple-statements
     match = RES_FETCH_SELF_PATTERN.match(message.content.lower())
-    if match: return handleTargetedResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
+    if match:
+        return handleTargetedResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
+
     match = RES_LIST_SELF_PATTERN.match(message.content.lower())
-    if match: return handleGeneralResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
+    if match:
+        return handleGeneralResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
+
     match = RES_FETCH_OTHER_PATTERN.match(message.content.lower())
-    if match: return handleTargetedResonanceLookupForOtherUser(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
+    if match:
+        return handleTargetedResonanceLookupForOtherUser(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
     match = RES_SET_PATTERN.match(message.content.lower())
     if match:
-        unit_name = match.group('unit').strip()
-        esper_name = match.group('esper').strip()
-        resonance_numeric_string = match.group('resonance_level').strip()
-        priority = None
-        if match.group('priority'):
-            priority = match.group('priority').strip()
-        comment = None
-        if match.group('comment'):
-            comment = match.group('comment').strip()
-        print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s, comment %s' % (
-            from_name, from_discrim, unit_name, esper_name, resonance_numeric_string, priority, comment))
-        old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = esper_resonance_manager.setResonance(
-            from_id, unit_name, esper_name, resonance_numeric_string, priority, comment)
-        responseText = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
-            from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
-        if (resonance_numeric_string and int(resonance_numeric_string) == 10):
-            # reaction = '\U0001F4AA' # CLDR: flexed biceps
-            reaction = '\U0001F3C6'  # CLDR: trophy
-        else:
-            reaction = '\U00002705'  # CLDR: check mark button
-        return (responseText, reaction)
+        return handleResonanceSet(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
-    # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure,
-    # but it's also not common, so it isn't listed in help.
+    # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed in help.
     if message.content.lower().startswith('!whoami'):
-        responseText = '<@{id}>: Your snowflake ID is {id}'.format(id=from_id)
-        return (responseText, None)
+        return handleWhoAmI(context)
 
-    # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure,
-    # but it's also not common, so it isn't listed in help.
+    # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure, but it's also not common, so it isn't listed in help.
     match = WHOIS_PATTERN.match(message.content.lower())
     if match:
-        match = WHOIS_PATTERN.match(message.content) # Fetch original-case name
-        target_member_name = match.group('server_handle').strip()
-        members = message.guild.members
-        for member in members:
-            if member.name == target_member_name:
-                responseText = '<@{0}>: the snowflake ID for {1} is {2}'.format(from_id, target_member_name, member.id)
-                return (responseText, None)
-        responseText = '<@{0}>: no such member {1}'.format(
-            from_id, target_member_name)
-        return (responseText, None)
+        return handleWhoIs(context.shallowCopy().withMatch(match))
 
-    # (Admin only) Pattern for adding an Esper column.
-    match = ADMIN_ADD_ESPER_PATTERN.match(message.content)
-    sandbox_match = SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(message.content)
-    admin_add_esper_match = None
-    sandbox = False
-    if match:
-        admin_add_esper_match = match
-    elif sandbox_match:
-        admin_add_esper_match = sandbox_match
-        sandbox = True
+    if ADMIN_ADD_ESPER_PATTERN.match(message.content) or SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(message.content):
+        return handleAdminAddEsper(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
 
-    if admin_add_esper_match:
-        esper_name = admin_add_esper_match.group('name').strip()
-        esper_url = admin_add_esper_match.group('url').strip()
-        left_or_right_of = admin_add_esper_match.group('left_or_right_of').strip()
-        column = admin_add_esper_match.group('column').strip()
-        print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(
-            from_name, from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
-        esper_resonance_manager.addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
-        responseText = '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
-        return (responseText, None)
-
-    # (Admin only) Pattern for adding a Unit row.
-    match = ADMIN_ADD_UNIT_PATTERN.match(message.content)
-    sandbox_match = SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content)
-    admin_add_unit_match = None
-    sandbox = False
-    if match:
-        admin_add_unit_match = match
-    elif sandbox_match:
-        admin_add_unit_match = sandbox_match
-        sandbox = True
-
-    if admin_add_unit_match:
-        unit_name = admin_add_unit_match.group('name').strip()
-        unit_url = admin_add_unit_match.group('url').strip()
-        above_or_below = admin_add_unit_match.group('above_or_below').strip()
-        row1Based = admin_add_unit_match.group('row1Based').strip()
-        print('unit add (sandbox mode={6}) from user {0}#{1}, for unit {2}, url {3}, position {4}, row {5}'.format(
-            from_name, from_discrim, unit_name, unit_url, above_or_below, row1Based, sandbox))
-        esper_resonance_manager.addUnitRow(from_id, unit_name, unit_url, above_or_below, row1Based, sandbox)
-        responseText = '<@{0}>: Added unit {1}!'.format(from_id, unit_name)
-        return (responseText, None)
+    if ADMIN_ADD_UNIT_PATTERN.match(message.content) or SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content):
+        return handleAdminAddUnit(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
 
     if message.content.lower().startswith('!resonance'):
-        responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(
-            from_id)
+        responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
         return (responseText, None)
 
-    is_ocr_request = False
-    is_ocr_debug_request = False
-    if EXPERIMENTAL_VISION_CARD_OCR_PATTERN.match(message.content.lower()):
-        is_ocr_request = True
-    if EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN.match(message.content.lower()):
-        is_ocr_request = True
-        is_ocr_debug_request = True
-    if is_ocr_request:
-        # Try to extract text from a vision card screenshot that is sent as an attachment to this message.
-        url = message.attachments[0].url
-        print('vision card ocr request from user %s#%s, for url %s' % (from_name, from_discrim, url))
-        screenshot = VisionCardOcrUtils.downloadScreenshotFromUrl(url)
-        vision_card = VisionCardOcrUtils.extractVisionCardFromScreenshot(screenshot, is_ocr_debug_request)
-        if is_ocr_debug_request:
-            combined_image = VisionCardOcrUtils.mergeDebugImages(vision_card)
-            buffer = io.BytesIO()
-            combined_image.save(buffer, format='PNG')
-            buffer.seek(0)
-            temp_file = discord.File(buffer, filename='Intermediate OCR Debug.png')
-            await message.channel.send('Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```'.format(
-                vision_card.info_debug_raw_text,
-                vision_card.stats_debug_raw_text), file=temp_file)
-
-        if vision_card.successfully_extracted is True:
-            responseText = '<@{0}>: {1}'.format(from_id, vision_card.prettyPrint())
-        else:
-            responseText = '<@{0}>: Vision card extraction has failed. You may try again with !xocr-debug for a clue about what has gone wrong'.format(from_id)
-        return (responseText, None)
+    if EXPERIMENTAL_VISION_CARD_OCR_PATTERN.match(message.content.lower()) or EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN.match(message.content.lower()):
+        return await handleVisionCardOcr(context.shallowCopy())
 
     if message.content.lower().startswith('!help'):
         responseText = HELP.format(ESPER_RESONANCE_SPREADSHEET_ID)
@@ -432,7 +343,7 @@ async def getDiscordSafeResponse(message):
             'Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
 
 def handleTargetedResonanceLookupForSelf(context: CommandContextInfo) -> (str, str):
-    """Handle !res or !resonance command for self-lookup of a specific (unit, esper) tuple."""
+    """Handle !res command for self-lookup of a specific (unit, esper) tuple."""
     unit_name = context.command_match.group(1).strip()
     esper_name = context.command_match.group(2).strip()
     print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (
@@ -442,7 +353,7 @@ def handleTargetedResonanceLookupForSelf(context: CommandContextInfo) -> (str, s
     return (responseText, None)
 
 def handleTargetedResonanceLookupForOtherUser(context: CommandContextInfo) -> (str, str):
-    """Handle !res or !resonance command for lookup of a specific (unit, esper) tuple for a different user."""
+    """Handle !res command for lookup of a specific (unit, esper) tuple for a different user."""
     target_user_name = context.command_match.group(1).strip()
     unit_name = context.command_match.group(2).strip()
     esper_name = context.command_match.group(3).strip()
@@ -453,11 +364,114 @@ def handleTargetedResonanceLookupForOtherUser(context: CommandContextInfo) -> (s
     return (responseText, None)
 
 def handleGeneralResonanceLookupForSelf(context: CommandContextInfo) -> (str, str):
-    """Handle !res or !resonance command for self-lookup of all resonance for a given unit or esper."""
+    """Handle !res command for self-lookup of all resonance for a given unit or esper."""
     target_name = context.command_match.group('target_name').strip()
     print('resonance list fetch from user %s#%s, for target %s' % (context.from_name, context.from_discrim, target_name))
     pretty_name, resonance_listing = context.esper_resonance_manager.readResonanceList(None, context.from_id, target_name)
     responseText = '<@{0}>: resonance listing for {1}:\n{2}'.format(context.from_id, pretty_name, resonance_listing)
+    return (responseText, None)
+
+def handleResonanceSet(context: CommandContextInfo) -> (str, str):
+    """Handle !res-set command to set resonance for a specific unit and esper tuple."""
+    unit_name = context.command_match.group('unit').strip()
+    esper_name = context.command_match.group('esper').strip()
+    resonance_numeric_string = context.command_match.group('resonance_level').strip()
+    priority = None
+    if context.command_match.group('priority'):
+        priority = context.command_match.group('priority').strip()
+    comment = None
+    if context.command_match.group('comment'):
+        comment = context.command_match.group('comment').strip()
+    print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s, comment %s' % (
+        context.from_name, context.from_discrim, unit_name, esper_name, resonance_numeric_string, priority, comment))
+    old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = context.esper_resonance_manager.setResonance(
+        context.from_id, unit_name, esper_name, resonance_numeric_string, priority, comment)
+    responseText = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
+        context.from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
+    if (resonance_numeric_string and int(resonance_numeric_string) == 10):
+        # reaction = '\U0001F4AA' # CLDR: flexed biceps
+        reaction = '\U0001F3C6'  # CLDR: trophy
+    else:
+        reaction = '\U00002705'  # CLDR: check mark button
+    return (responseText, reaction)
+
+def handleWhoAmI(context: CommandContextInfo) -> (str, str):
+    """Handle !whoami command to fetch your own snowflake ID."""
+    responseText = '<@{id}>: Your snowflake ID is {id}'.format(id=context.from_id)
+    return (responseText, None)
+
+def handleWhoIs(context: CommandContextInfo) -> (str, str):
+    """Handle !whois command to fetch the snowflake ID for a given user."""
+    original_match = WHOIS_PATTERN.match(context.original_message.content) # Fetch original-case name
+    target_member_name = original_match.group('server_handle').strip()
+    members = context.original_message.guild.members
+    for member in members:
+        if member.name == target_member_name:
+            responseText = '<@{0}>: the snowflake ID for {1} is {2}'.format(context.from_id, target_member_name, member.id)
+            return (responseText, None)
+    responseText = '<@{0}>: no such member {1}'.format(context.from_id, target_member_name)
+    return (responseText, None)
+
+def handleAdminAddEsper(context: CommandContextInfo) -> (str, str):
+    """Handle !admin-add-esper and !sandbox-admin-add-esper commands to add a new esper to the resonance tracker."""
+    sandbox = True
+    match = ADMIN_ADD_ESPER_PATTERN.match(context.original_message.content)
+    if match:
+        sandbox = False
+    else:
+        match = SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(context.original_message.content)
+    esper_name = match.group('name').strip()
+    esper_url = match.group('url').strip()
+    left_or_right_of = match.group('left_or_right_of').strip()
+    column = match.group('column').strip()
+    print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(
+        context.from_name, context.from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
+    context.esper_resonance_manager.addEsperColumn(context.from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
+    responseText = '<@{0}>: Added esper {1}!'.format(context.from_id, esper_name)
+    return (responseText, None)
+
+def handleAdminAddUnit(context: CommandContextInfo) -> (str, str):
+    """Handle !admin-add-unit and !sandbox-admin-add-unit commands to add a new unit to the resonance tracker."""
+    sandbox = True
+    match = ADMIN_ADD_UNIT_PATTERN.match(context.original_message.content)
+    if match:
+        sandbox = False
+    else:
+        match = SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(context.original_message.content)
+    unit_name = match.group('name').strip()
+    unit_url = match.group('url').strip()
+    above_or_below = match.group('above_or_below').strip()
+    row1Based = match.group('row1Based').strip()
+    print('unit add (sandbox mode={6}) from user {0}#{1}, for unit {2}, url {3}, position {4}, row {5}'.format(
+        context.from_name, context.from_discrim, unit_name, unit_url, above_or_below, row1Based, sandbox))
+    context.esper_resonance_manager.addUnitRow(context.from_id, unit_name, unit_url, above_or_below, row1Based, sandbox)
+    responseText = '<@{0}>: Added unit {1}!'.format(context.from_id, unit_name)
+    return (responseText, None)
+
+async def handleVisionCardOcr(context: CommandContextInfo) -> (str, str):
+    """Handle !xocr and !xocr-debug commands to perform OCR on a Vision Card."""
+    is_debug = False
+    if EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN.match(context.original_message.content.lower()):
+        is_debug = True
+    # Try to extract text from a vision card screenshot that is sent as an attachment to this message.
+    url = context.original_message.attachments[0].url
+    print('Vision Card OCR request from user %s#%s, for url %s' % (context.from_name, context.from_discrim, url))
+    screenshot = VisionCardOcrUtils.downloadScreenshotFromUrl(url)
+    vision_card = VisionCardOcrUtils.extractVisionCardFromScreenshot(screenshot, is_debug)
+    if is_debug:
+        combined_image = VisionCardOcrUtils.mergeDebugImages(vision_card)
+        buffer = io.BytesIO()
+        combined_image.save(buffer, format='PNG')
+        buffer.seek(0)
+        temp_file = discord.File(buffer, filename='Intermediate OCR Debug.png')
+        await context.original_message.channel.send('Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```'.format(
+            vision_card.info_debug_raw_text,
+            vision_card.stats_debug_raw_text), file=temp_file)
+    if vision_card.successfully_extracted is True:
+        responseText = '<@{0}>: {1}'.format(context.from_id, vision_card.prettyPrint())
+    else:
+        responseText = '<@{0}>: Vision card extraction has failed. You may try again with !xocr-debug for a clue about what has gone wrong'.format(
+            context.from_id)
     return (responseText, None)
 
 if __name__ == "__main__":
