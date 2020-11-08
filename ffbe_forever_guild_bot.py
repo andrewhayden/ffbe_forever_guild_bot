@@ -17,7 +17,8 @@ from google.auth.transport.requests import Request
 from PIL import Image
 
 from worksheet_utils import WorksheetUtils
-from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
+from vision_card_common import VisionCard
+from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
 from wotv_bot_common import ExposableException
 
@@ -230,7 +231,7 @@ def openSpreadsheets():
     return spreadsheetApp
 
 
-def prettyPrintVisionCardOcrText(card):
+def prettyPrintVisionCardOcrText(card: VisionCard):
     """Generate a safe response for a Vision Card message from discord, or None if no response is needed."""
     result = card.Name + '\n'
     result += '  Cost: ' + str(card.Cost) + '\n'
@@ -405,8 +406,8 @@ async def getDiscordSafeResponse(message):
         # Try to extract text from a vision card screenshot that is sent as an attachment to this message.
         url = message.attachments[0].url
         print('vision card ocr request from user %s#%s, for url %s' % (from_name, from_discrim, url))
-        screenshot = downloadScreenshotFromUrl(url)
-        vision_card = extractNiceTextFromVisionCard(screenshot, is_ocr_debug_request)
+        screenshot = VisionCardOcrUtils.downloadScreenshotFromUrl(url)
+        vision_card = VisionCardOcrUtils.extractVisionCardFromScreenshot(screenshot, is_ocr_debug_request)
         if is_ocr_debug_request:
             all_images = [
                 vision_card.debug_image_step1_gray,
