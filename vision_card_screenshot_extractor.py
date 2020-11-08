@@ -48,6 +48,8 @@ class VisionCard:
     info_debug_image_step6_converted_final_ocr_input_image: Image = None
     stats_debug_raw_text: str = None
     info_debug_raw_text: str = None
+    successfully_extracted: bool = False
+    error_messages: List[str] = field(default_factory=list)
 
 def downloadScreenshotFromUrl(url):
     """Download a vision card screenshot from the specified URL and return as an OpenCV image object."""
@@ -390,7 +392,12 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
         upper = line.upper()
         if progress == AT_START:
             if upper.startswith('COST') or upper.startswith('HP') or upper.startswith('TP') or upper.startswith('AP') or upper.startswith('ATK') or upper.startswith('MAG'):
-                bindStats(fuzzyStatExtract(line), result)
+                try:
+                    bindStats(fuzzyStatExtract(line), result)
+                # pylint: disable=broad-except
+                except Exception as ex:
+                    result.error_messages.append(str(ex))
+                    return result
             elif upper.startswith('PARTY'):
                 progress = IN_PARTY_ABILITY
         elif progress == IN_PARTY_ABILITY:
@@ -398,8 +405,9 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
                 progress = IN_BESTOWED_EFFECTS
             elif len(upper) < MIN_PARTY_ABILITY_STRING_LENGTH_SANITY:
                 pass # Ignore trash, such as the "Cau" in the example above, if it appears on its own line.
-            elif result.PartyAbility is not None:
-                raise Exception('Found multiple party ability lines in vision card') # should not happen, party ability is only one line of text
+            elif result.PartyAbility is not None: # should not happen, party ability is only one line of text
+                result.error_messages.append('Found multiple party ability lines in vision card')
+                return result
             elif safe_effects_regex.match(line):
                 result.PartyAbility = line
         elif progress == IN_BESTOWED_EFFECTS:
@@ -411,6 +419,8 @@ def extractNiceTextFromVisionCard(vision_card_image, is_debug = False):
                 result.BestowedEffects.append(line)
         elif progress == DONE:
             break
+    if len(result.error_messages) == 0:
+        result.successfully_extracted = True
     return result
 
 def invokeStandalone(path):

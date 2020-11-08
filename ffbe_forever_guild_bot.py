@@ -927,8 +927,14 @@ async def getDiscordSafeResponse(message):
             combined_image.save(buffer, format='PNG')
             buffer.seek(0)
             temp_file = discord.File(buffer, filename="Intermediate OCR Debug.png")
-            await message.channel.send("Intermediate OCR Debug", file=temp_file)
-        responseText = '<@{0}>: {1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
+            await message.channel.send("Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```".format(
+                vision_card.info_debug_raw_text,
+                vision_card.stats_debug_raw_text), file=temp_file)
+
+        if vision_card.successfully_extracted is True:
+            responseText = '<@{0}>: {1}'.format(from_id, prettyPrintVisionCardOcrText(vision_card))
+        else:
+            responseText = '<@{0}>: Vision card extraction has failed. You may try again with !xocr-debug for a clue about what has gone wrong'.format(from_id)
         return (responseText, None)
 
     if message.content.lower().startswith('!help'):
