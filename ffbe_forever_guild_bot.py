@@ -1,3 +1,4 @@
+"""A bot for managing War of the Visions guild information via Discord."""
 from __future__ import print_function
 import io
 import logging
@@ -15,8 +16,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from PIL import Image
 
-from worksheet_utils import fuzzyFindRow, fuzzyFindColumn, normalizeName, safeWorksheetName, fromA1, AmbiguousSearchException, NoResultsException
+from worksheet_utils import WorksheetUtils
 from vision_card_screenshot_extractor import downloadScreenshotFromUrl, extractNiceTextFromVisionCard
+from esper_resonance_manager import EsperResonanceManager
+from wotv_bot_common import ExposableException
 
 # -----------------------------------------------------------------------------
 # Configuration & Constants
@@ -42,21 +45,12 @@ SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID = None
 # The ID of the spreadsheet that provides Discord User ID <-> Alias mappings for access control.
 ACCESS_CONTROL_SPREADSHEET_ID = None
 
-# The name of the tab that contains the user bindings that map Discord IDs to data tabs.
-USERS_TAB_NAME = 'Users'
-
 # The token of the Discord bot, needed to log into Discord.
 DISCORD_BOT_TOKEN = None
 
 # Maximum length of a Discord message. Messages longer than this need to be split up.
 # The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
 DISCORD_MESSAGE_LENGTH_LIMIT = 1000
-
-# Templates for the various resonance quantities. These match validation rules in the spreadsheet.
-RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE = 'Low Priority: {0}/10'
-RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE = 'Medium Priority: {0}/10'
-RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE = 'High Priority: {0}/10'
-RESONANCE_MAX_VALUE = '10/10'
 
 # -----------------------------------------------------------------------------
 # Command Regexes & Help
@@ -152,7 +146,7 @@ IGNORE_PATTERN_2 = re.compile(r'^!$')
 # List of all ignore patterns, to iterate over.
 ALL_IGNORE_PATTERNS = [IGNORE_PATTERN_1, IGNORE_PATTERN_2]
 
-class DiscordSafeException(Exception):
+class DiscordSafeException(ExposableException):
     """An exception whose error text is safe to show in Discord.
     Attributes:
         message -- explanation of the error
@@ -211,7 +205,7 @@ def maybeSplitMessageNicely(message_text):
 
 
 def openSpreadsheets():
-    """Open the spreadsheet and return a tuple of the service object and the spreadsheets object."""
+    """Open the spreadsheet and return the the application interface object."""
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -234,498 +228,6 @@ def openSpreadsheets():
     service = build('sheets', 'v4', credentials=creds)
     spreadsheetApp = service.spreadsheets() # pylint: disable=no-member
     return spreadsheetApp
-
-
-def findAssociatedTab(spreadsheetApp, discord_user_id):
-    """Return the name of the tab to which the specified Discord snowflake/user ID is bound.
-
-    If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
-    """
-    # Discord IDs are in column A, the associated tab name is in column B
-    range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:B'
-    rows = None
-    try:
-        values = spreadsheetApp.values().get(
-            spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
-        rows = values.get('values', [])
-        if not rows:
-            raise Exception('')
-    except:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException('Spreadsheet misconfigured') # deliberately low on details as this is replying in Discord.
-
-    for row in rows:
-        if str(row[0]) == str(discord_user_id):
-            return row[1]
-    raise DiscordSafeException(
-        'User with ID {0} is not configured, or is not allowed to access this data. Ask your guild administrator for assistance.'.format(discord_user_id))
-
-
-def isAdmin(spreadsheetApp, discord_user_id):
-    """Return True if the specified discord user id has administrator permissions."""
-    # Discord IDs are in column A, the associated tab name is in column B, and if 'Admin' is in column C, then it's an admin.
-    range_name = safeWorksheetName(USERS_TAB_NAME) + '!A:C'
-    rows = None
-    try:
-        values = spreadsheetApp.values().get(
-            spreadsheetId=ACCESS_CONTROL_SPREADSHEET_ID, range=range_name).execute()
-        rows = values.get('values', [])
-        if not rows:
-            raise Exception('')
-    except:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException('Spreadsheet misconfigured') # deliberately low on details as this is replying in Discord.
-
-    for row in rows:
-        if str(row[0]) == str(discord_user_id):
-            result = (len(row) > 2 and row[2] and row[2].lower() == 'admin')
-            print('Admin check for discord user {0}: {1}'.format(
-                discord_user_id, result))
-            return result
-    return False
-
-
-def findEsperColumn(spreadsheetApp, user_name, search_text):
-    """Performs a fuzzy lookup for an esper, returning the column (in A1 notation) and the text from within the one matched cell."""
-    try:
-        return fuzzyFindColumn(spreadsheetApp, ESPER_RESONANCE_SPREADSHEET_ID, user_name, search_text, "2")
-    except AmbiguousSearchException as ambiguous:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException(ambiguous.message)
-    except NoResultsException as noresults:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException(noresults.message)
-
-
-
-def findUnitRow(spreadsheetApp, user_name, search_text):
-    """Performs a fuzzy lookup for a unit, returning the row number and the text from within the one matched cell."""
-    try:
-        return fuzzyFindRow(spreadsheetApp, ESPER_RESONANCE_SPREADSHEET_ID, user_name, search_text, "B")
-    except AmbiguousSearchException as ambiguous:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException(ambiguous.message)
-    except NoResultsException as noresults:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException(noresults.message)
-
-def addEsperColumn(discord_user_id, esper_name, esper_url, left_or_right_of, columnA1, sandbox):
-    """Add a new column for an esper.
-
-    The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
-    If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
-    """
-    columnInteger = fromA1(columnA1)
-    if left_or_right_of == 'left-of':
-        inheritFromBefore = False  # Meaning, inherit from right
-    elif left_or_right_of == 'right-of':
-        inheritFromBefore = True  # Meaning, inherit from left
-        columnInteger += 1
-    else:
-        raise DiscordSafeException(
-            'Incorrect parameter for position of new column, must be "left-of" or "right-of": ' + left_or_right_of)
-
-    spreadsheetApp = openSpreadsheets()
-    if not isAdmin(spreadsheetApp, discord_user_id):
-        raise DiscordSafeException(
-            'You do not have permission to add an esper.')
-
-    targetSpreadsheetId = None
-    if sandbox:
-        targetSpreadsheetId = SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
-    else:
-        targetSpreadsheetId = ESPER_RESONANCE_SPREADSHEET_ID
-    spreadsheet = spreadsheetApp.get(
-        spreadsheetId=targetSpreadsheetId).execute()
-
-    allRequests = []
-    for sheet in spreadsheet['sheets']:
-        sheetId = sheet['properties']['sheetId']
-        # First create an 'insertDimension' request to add a blank column on each sheet.
-        insertDimensionRequest = {
-            'insertDimension': {
-                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
-                'inheritFromBefore': inheritFromBefore,
-                'range': {
-                    'sheetId': sheetId,
-                    'dimension': 'COLUMNS',
-                    'startIndex': columnInteger - 1,
-                    'endIndex': columnInteger
-                }
-            }
-        }
-        allRequests.append(insertDimensionRequest)
-
-        # Now add the esper data to the new column on each sheet.
-        startColumnIndex = columnInteger - 1
-        updateCellsRequest = {
-            'updateCells': {
-                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
-                'rows': [{
-                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
-                    'values': [{
-                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
-                        'userEnteredValue': {
-                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
-                            'formulaValue': '=HYPERLINK("' + esper_url + '", "' + esper_name + '")'
-                        }
-                    }]
-                }],
-                'fields': 'userEnteredValue',
-                'range': {
-                    'sheetId': sheetId,
-                    'startRowIndex': 1,  # inclusive
-                    'endRowIndex': 2,  # exclusive
-                    'startColumnIndex': startColumnIndex,  # inclusive
-                    'endColumnIndex': startColumnIndex+1  # exclusive
-                }
-            }
-        }
-        allRequests.append(updateCellsRequest)
-
-    requestBody = {
-        'requests': [allRequests]
-    }
-    # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
-    spreadsheetApp.batchUpdate(
-        spreadsheetId=targetSpreadsheetId, body=requestBody).execute()
-
-    return
-
-
-def addUnitRow(discord_user_id, unit_name, unit_url, above_or_below, row1Based, sandbox):
-    """Add a new row for a unit.
-
-    The above_or_below parameter needs to be either the string 'above' or 'below'. The row should be in 1-based notation,
-    i.e. the first row is row 1, not row 0.
-    If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
-    """
-    rowInteger = int(row1Based)
-    if above_or_below == 'above':
-        inheritFromBefore = False  # Meaning, inherit from below
-    elif above_or_below == 'below':
-        inheritFromBefore = True  # Meaning, inherit from above
-        rowInteger += 1
-    else:
-        raise DiscordSafeException(
-            'Incorrect parameter for position of new row, must be "above" or "below": ' + above_or_below)
-
-    spreadsheetApp = openSpreadsheets()
-    if not isAdmin(spreadsheetApp, discord_user_id):
-        raise DiscordSafeException(
-            'You do not have permission to add a unit.')
-
-    targetSpreadsheetId = None
-    if sandbox:
-        targetSpreadsheetId = SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID
-    else:
-        targetSpreadsheetId = ESPER_RESONANCE_SPREADSHEET_ID
-    spreadsheet = spreadsheetApp.get(
-        spreadsheetId=targetSpreadsheetId).execute()
-
-    allRequests = []
-    for sheet in spreadsheet['sheets']:
-        sheetId = sheet['properties']['sheetId']
-        # First create an 'insertDimension' request to add a blank row on each sheet.
-        insertDimensionRequest = {
-            'insertDimension': {
-                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
-                'inheritFromBefore': inheritFromBefore,
-                'range': {
-                    'sheetId': sheetId,
-                    'dimension': 'ROWS',
-                    'startIndex': rowInteger - 1,
-                    'endIndex': rowInteger
-                }
-            }
-        }
-        allRequests.append(insertDimensionRequest)
-
-        # Now add the unit data to the new row on each sheet.
-        startRowIndex = rowInteger - 1
-        updateCellsRequest = {
-            'updateCells': {
-                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
-                'rows': [{
-                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
-                    'values': [{
-                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
-                        'userEnteredValue': {
-                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
-                            'formulaValue': '=HYPERLINK("' + unit_url + '", "' + unit_name + '")'
-                        }
-                    }]
-                }],
-                'fields': 'userEnteredValue',
-                'range': {
-                    'sheetId': sheetId,
-                    'startRowIndex': startRowIndex,  # inclusive
-                    'endRowIndex': startRowIndex+1,  # exclusive
-                    'startColumnIndex': 1,  # inclusive
-                    'endColumnIndex': 2  # exclusive
-                }
-            }
-        }
-        allRequests.append(updateCellsRequest)
-
-    requestBody = {
-        'requests': [allRequests]
-    }
-    # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
-    spreadsheetApp.batchUpdate(
-        spreadsheetId=targetSpreadsheetId, body=requestBody).execute()
-
-    return
-
-
-def readResonance(user_name, discord_user_id, unit_name, esper_name):
-    """Read and return the esper resonance, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
-
-    Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
-    same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
-    right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
-    and not the data of, e.g., another user who has their old nickname.
-    """
-    spreadsheetApp = openSpreadsheets()
-    if (user_name is not None) and (discord_user_id is not None):
-        print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
-        raise DiscordSafeException('Internal error')
-    if discord_user_id is not None:
-        user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
-
-    esper_column_A1, pretty_esper_name = findEsperColumn(
-        spreadsheetApp, user_name, esper_name)
-    unit_row, pretty_unit_name = findUnitRow(
-        spreadsheetApp, user_name, unit_name)
-
-    # We have the location. Get the value!
-    range_name = safeWorksheetName(
-        user_name) + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
-    result = spreadsheetApp.values().get(
-        spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
-    final_rows = result.get('values', [])
-
-    if not final_rows:
-        raise DiscordSafeException('{0} is not tracking any resonance for esper {1} on unit {2}'.format(
-            user_name, pretty_esper_name, pretty_unit_name))
-
-    return final_rows[0][0][0], pretty_unit_name, pretty_esper_name
-
-
-def readResonanceList(user_name, discord_user_id, query_string):
-    """Read and return the pretty name of the query subject (either a unit or an esper), and resonance list for the given user.
-
-    Set either the user name or the discord user ID, but not both. If the ID is set, the tab name for the resonance lookup is done the
-    same way as setResonance - an indirection through the access control spreadsheet is used to map the ID of the discord user to the
-    right tab. This is best for self-lookups, so that even if a user changes their own nickname, they are still reading their own data
-    and not the data of, e.g., another user who has their old nickname.
-
-    The returned list of resonances is either (unit/resonance) or (esper/resonance) tuples.
-    """
-
-    spreadsheetApp = openSpreadsheets()
-    if (user_name is not None) and (discord_user_id is not None):
-        print('internal error: both user_name and discord_user_id specified. Specify one or the other, not both.')
-        raise DiscordSafeException('Internal error')
-    if discord_user_id is not None:
-        user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
-
-    esper_column_A1 = None
-    pretty_esper_name = None
-    unit_row_index = None
-    pretty_unit_name = None
-    mode = None
-    target_name = None
-
-    # First try to look up a unit whose name matches.
-    unit_lookup_exception_message = None
-    try:
-        unit_row_index, pretty_unit_name = findUnitRow(
-            spreadsheetApp, user_name, query_string)
-        mode = 'for unit'
-        target_name = pretty_unit_name
-    except DiscordSafeException as ex:
-        unit_lookup_exception_message = ex.message
-
-    # Try an esper lookup instead
-    esper_lookup_exception_message = None
-    if mode is None:
-        try:
-            esper_column_A1, pretty_esper_name = findEsperColumn(
-                spreadsheetApp, user_name, query_string)
-            mode = 'for esper'
-            target_name = pretty_esper_name
-        except DiscordSafeException as ex:
-            esper_lookup_exception_message = ex.message
-
-    # If neither esper or unit is found, fail now.
-    if mode is None:
-        raise DiscordSafeException(
-            'Unable to find a singular match for: ```{0}```\nUnit lookup results: {1}\nEsper lookup results: {2}'.format(
-                query_string, unit_lookup_exception_message, esper_lookup_exception_message))
-
-    # Grab all the data in one call, so we can read everything at once and have atomicity guarantees.
-    result = spreadsheetApp.values().get(spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID,
-                                         range=safeWorksheetName(user_name)).execute()
-    result_rows = result.get('values', [])
-    resonances = []
-    if mode == 'for esper':
-        esper_index = fromA1(esper_column_A1) - 1  # 0-indexed in result
-        rowCount = 0
-        for row in result_rows:
-            rowCount += 1
-            if rowCount < 3:
-                # skip headers
-                continue
-            # rows collapse to the left, so only the last non-empty column exists in the data
-            if len(row) > esper_index:
-                # annnnd as a result, there might be a value to the right, while this column could be empty.
-                if row[esper_index]:
-                    resonances.append(row[1] + ': ' + row[esper_index])
-    else:  # mode == 'for unit'
-        colCount = 0
-        unit_row = result_rows[unit_row_index - 1]  # 0-indexed in result
-        for column in unit_row:
-            colCount += 1
-            if colCount < 3:
-                # skip headers
-                continue
-            if column:
-                # Grab the esper name from the top of this column, and then append the column value.
-                resonances.append(result_rows[1][colCount - 1] + ': ' + column)
-
-    # Format the list nicely for responding in Discord
-    resultString = ''
-    for resonance in resonances:
-        resultString += resonance + '\n'
-    resultString = resultString.strip()
-    return (target_name, resultString)
-
-
-def setResonance(discord_user_id, unit_name, esper_name, resonance_numeric_string, priority, comment):
-    """Set the esper resonance.
-
-    Returns the old value, new value, pretty unit name, and pretty esper name for the given (unit, esper) tuple, for the given user.
-    """
-    resonance_int = None
-    try:
-        resonance_int = int(resonance_numeric_string)
-    except:
-        # pylint: disable=raise-missing-from
-        raise DiscordSafeException(
-            'Invalid resonance level: "{0}"'.format(resonance_numeric_string)) # deliberately low on details as this is replying in Discord.
-    if (resonance_int < 0) or (resonance_int > 10):
-        raise DiscordSafeException(
-            'Resonance must be a value in the range 0 - 10')
-
-    spreadsheetApp = openSpreadsheets()
-    user_name = findAssociatedTab(spreadsheetApp, discord_user_id)
-
-    esper_column_A1, pretty_esper_name = findEsperColumn(
-        spreadsheetApp, user_name, esper_name)
-    unit_row, pretty_unit_name = findUnitRow(
-        spreadsheetApp, user_name, unit_name)
-
-    spreadsheet = spreadsheetApp.get(
-        spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID).execute()
-    sheetId = None
-    for sheet in spreadsheet['sheets']:
-        sheetTitle = sheet['properties']['title']
-        if sheetTitle == user_name:
-            sheetId = sheet['properties']['sheetId']
-            break
-    if sheetId is None:
-        raise DiscordSafeException(
-            'Internal error: sheet not found for {0}.'.format(user_name))
-
-    # We have the location. Get the old value first.
-    range_name = safeWorksheetName(
-        user_name) + '!' + esper_column_A1 + str(unit_row) + ':' + esper_column_A1 + str(unit_row)
-    result = spreadsheetApp.values().get(
-        spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, range=range_name).execute()
-    final_rows = result.get('values', [])
-    old_value_string = '(not set)'
-    if final_rows:
-        old_value_string = final_rows[0][0]
-
-    # Now that we have the old value, try to update the new value.
-    # If priority is blank, leave the level (high/medium/low) alone.
-    if priority is not None:
-        priority = priority.lower()
-    priorityString = None
-    if resonance_int == 10:
-        priorityString = '10/10'
-    elif (priority == 'l') or (priority == 'low') or (priority is None and 'low' in old_value_string.lower()):
-        priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(
-            resonance_int)
-    elif (priority == 'm') or (priority == 'medium') or (priority is None and 'medium' in old_value_string.lower()):
-        priorityString = RESONANCE_MEDIUM_PRIORITY_VALUE_TEMPLATE.format(
-            resonance_int)
-    elif (priority == 'h') or (priority == 'high') or (priority is None and 'high' in old_value_string.lower()):
-        priorityString = RESONANCE_HIGH_PRIORITY_VALUE_TEMPLATE.format(
-            resonance_int)
-    elif priority is None:
-        # Priority not specified, and old value doesn't have high/medium/low -> old value was blank, or old value was 10.
-        # Default to low priority.
-        priorityString = RESONANCE_LOW_PRIORITY_VALUE_TEMPLATE.format(
-            resonance_int)
-    else:
-        raise DiscordSafeException(
-            'Unknown priority value. Priority should be blank or one of "L", "low", "M", "medium", "H", "high"')
-
-    # Now write the new value
-    updateValueRequest = {
-        'updateCells': {
-            'rows': [{
-                'values': [{
-                    'userEnteredValue': {
-                        'stringValue': priorityString
-                    }
-                }]
-            }],
-            'fields': 'userEnteredValue',
-            'range': {
-                'sheetId': sheetId,
-                'startRowIndex': unit_row-1,  # inclusive
-                'endRowIndex': unit_row,  # exclusive
-                'startColumnIndex': fromA1(esper_column_A1)-1,  # inclusive
-                'endColumnIndex': fromA1(esper_column_A1)  # exclusive
-            }
-        }
-    }
-    allRequests = []
-    allRequests.append(updateValueRequest)
-
-    if comment:
-        commentText = comment
-        if comment == '<blank>':  # Allow clearing the comment
-            commentText = ''
-        updateCommentRequest = {
-            'updateCells': {
-                'rows': [{
-                    'values': [{
-                        'note': commentText
-                    }]
-                }],
-                'fields': 'note',
-                'range': {
-                    'sheetId': sheetId,
-                    'startRowIndex': unit_row-1,  # inclusive
-                    'endRowIndex': unit_row,  # exclusive
-                    'startColumnIndex': fromA1(esper_column_A1)-1,  # inclusive
-                    'endColumnIndex': fromA1(esper_column_A1)  # exclusive
-                }
-            }
-        }
-        allRequests.append(updateCommentRequest)
-
-    requestBody = {
-        'requests': [allRequests]
-    }
-    # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
-    spreadsheetApp.batchUpdate(
-        spreadsheetId=ESPER_RESONANCE_SPREADSHEET_ID, body=requestBody).execute()
-    return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
 
 
 def prettyPrintVisionCardOcrText(card):
@@ -768,27 +270,24 @@ async def getDiscordSafeResponse(message):
     from_id = message.author.id
     from_discrim = message.author.discriminator
 
+    # TODO: Hold this reference longer?
+    esper_resonance_manager = EsperResonanceManager(ESPER_RESONANCE_SPREADSHEET_ID, SANDBOX_ESPER_RESONANCE_SPREADSHEET_ID, ACCESS_CONTROL_SPREADSHEET_ID, openSpreadsheets())
+
     match = RES_FETCH_SELF_PATTERN.match(message.content.lower())
     if match:
         unit_name = match.group(1).strip()
         esper_name = match.group(2).strip()
-        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (
-            from_name, from_discrim, from_name, unit_name, esper_name))
-        resonance, pretty_unit_name, pretty_esper_name = readResonance(
-            None, from_id, unit_name, esper_name)
-        responseText = '<@{0}>: {1}/{2} has resonance {3}'.format(
-            from_id, pretty_unit_name, pretty_esper_name, resonance)
+        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, from_name, unit_name, esper_name))
+        resonance, pretty_unit_name, pretty_esper_name = esper_resonance_manager.readResonance(None, from_id, unit_name, esper_name)
+        responseText = '<@{0}>: {1}/{2} has resonance {3}'.format(from_id, pretty_unit_name, pretty_esper_name, resonance)
         return (responseText, None)
 
     match = RES_LIST_SELF_PATTERN.match(message.content.lower())
     if match:
         target_name = match.group('target_name').strip()
-        print('resonance list fetch from user %s#%s, for target %s' %
-              (from_name, from_discrim, target_name))
-        pretty_name, resonance_listing = readResonanceList(
-            None, from_id, target_name)
-        responseText = '<@{0}>: resonance listing for {1}:\n{2}'.format(
-            from_id, pretty_name, resonance_listing)
+        print('resonance list fetch from user %s#%s, for target %s' % (from_name, from_discrim, target_name))
+        pretty_name, resonance_listing = esper_resonance_manager.readResonanceList(None, from_id, target_name)
+        responseText = '<@{0}>: resonance listing for {1}:\n{2}'.format(from_id, pretty_name, resonance_listing)
         return (responseText, None)
 
     match = RES_FETCH_OTHER_PATTERN.match(message.content.lower())
@@ -796,12 +295,9 @@ async def getDiscordSafeResponse(message):
         target_user_name = match.group(1).strip()
         unit_name = match.group(2).strip()
         esper_name = match.group(3).strip()
-        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (
-            from_name, from_discrim, target_user_name, unit_name, esper_name))
-        resonance, pretty_unit_name, pretty_esper_name = readResonance(
-            target_user_name, None, unit_name, esper_name)
-        responseText = '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(
-            from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
+        print('resonance fetch from user %s#%s, for user %s, for unit %s, for esper %s' % (from_name, from_discrim, target_user_name, unit_name, esper_name))
+        resonance, pretty_unit_name, pretty_esper_name = esper_resonance_manager.readResonance(target_user_name, None, unit_name, esper_name)
+        responseText = '<@{0}>: for user {1}, {2}/{3} has resonance {4}'.format(from_id, target_user_name, pretty_unit_name, pretty_esper_name, resonance)
         return (responseText, None)
 
     match = RES_SET_PATTERN.match(message.content.lower())
@@ -817,7 +313,7 @@ async def getDiscordSafeResponse(message):
             comment = match.group('comment').strip()
         print('resonance set from user %s#%s, for unit %s, for esper %s, to resonance %s, with priority %s, comment %s' % (
             from_name, from_discrim, unit_name, esper_name, resonance_numeric_string, priority, comment))
-        old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = setResonance(
+        old_resonance, new_resonance, pretty_unit_name, pretty_esper_name = esper_resonance_manager.setResonance(
             from_id, unit_name, esper_name, resonance_numeric_string, priority, comment)
         responseText = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
             from_id, pretty_unit_name, pretty_esper_name, new_resonance, old_resonance)
@@ -867,7 +363,7 @@ async def getDiscordSafeResponse(message):
         column = admin_add_esper_match.group('column').strip()
         print('esper add (sandbox mode={6}) from user {0}#{1}, for esper {2}, url {3}, position {4}, column {5}'.format(
             from_name, from_discrim, esper_name, esper_url, left_or_right_of, column, sandbox))
-        addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
+        esper_resonance_manager.addEsperColumn(from_id, esper_name, esper_url, left_or_right_of, column, sandbox)
         responseText = '<@{0}>: Added esper {1}!'.format(from_id, esper_name)
         return (responseText, None)
 
@@ -889,7 +385,7 @@ async def getDiscordSafeResponse(message):
         row1Based = admin_add_unit_match.group('row1Based').strip()
         print('unit add (sandbox mode={6}) from user {0}#{1}, for unit {2}, url {3}, position {4}, row {5}'.format(
             from_name, from_discrim, unit_name, unit_url, above_or_below, row1Based, sandbox))
-        addUnitRow(from_id, unit_name, unit_url, above_or_below, row1Based, sandbox)
+        esper_resonance_manager.addUnitRow(from_id, unit_name, unit_url, above_or_below, row1Based, sandbox)
         responseText = '<@{0}>: Added unit {1}!'.format(from_id, unit_name)
         return (responseText, None)
 
@@ -993,7 +489,7 @@ async def on_message(message):
     reaction = None
     try:
         responseText, reaction = await getDiscordSafeResponse(message)
-    except DiscordSafeException as safeException:
+    except ExposableException as safeException:
         responseText = safeException.message
     if responseText:
         fullTextToSend = maybeSplitMessageNicely(responseText)
