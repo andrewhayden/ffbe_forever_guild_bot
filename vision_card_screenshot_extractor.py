@@ -199,6 +199,14 @@ def bindStats(stat_tuples_list, vision_card):
     for stat_tuple in stat_tuples_list:
         bindStat(stat_tuple[0], stat_tuple[1], vision_card)
 
+def isStatName(text):
+    """Returns True if and only if the specified text is a valid name of a stat on a vision card.
+
+    Stats are COST, HP, DEF, TP, SPR, AP, DEX, ATK, AGI, MAG and LUCK.
+    """
+    stat_names = {'COST', 'HP', 'DEF', 'TP', 'SPR', 'AP', 'DEX', 'ATK', 'AGI', 'MAG', 'LUCK'}
+    return text.upper() in stat_names
+
 def bindStat(stat_name, stat_value, vision_card):
     """Binds the value of the stat having the specified name to the specified vision card.
 
@@ -270,31 +278,34 @@ def fuzzyStatExtract(raw_line):
     num_substrings = len(substrings)
 
     # There are only a few possibilities, and they depend on the length of the substrings array
-    # In all cases the first word must be nothing but letters.
-    just_alphas = re.compile(r'^(?P<stat_name>[a-zA-Z]+)$')
-    if not just_alphas.match(substrings[0]):
+    # In all cases the first word must be a valid stat.
+    if not isStatName(substrings[0]):
         raise Exception('First word must consist of only letters')
 
     # For debugging nasty case issues below, re-enable these lines:
-    # print('baked line: ' + baked)
-    # print('num substrings: ' + str(num_substrings))
+    _debug_cases = True
+    if _debug_cases:
+        print('baked line: ' + baked)
+        print('num substrings: ' + str(num_substrings))
 
     # Length 1: Just a name, with no number (implies value is nothing)
     if num_substrings == 1:
         return [(substrings[0], None)] # example: "Cost -"
 
     # Now the possibility of numbers also exists.
-    just_numbers = re.compile(r'^(?P<stat_value>[0-9]+)$')
 
     # Length 2:
     # Case 2.1: A name and an integer value (one valid tuple)
     # Case 2.2: Two names and no integer values (OCR lost the first and second value)
     # Case 2.3: A name and garbage (OCR misread the second value)
     if num_substrings == 2:
-        if just_numbers.match(substrings[1]): # Case 2.1
+        if substrings[1].isdecimal(): # Case 2.1
+            if _debug_cases: print('Case 2.1') # pylint: disable=multiple-statements
             return [(substrings[0], intOrNone(substrings[1]))]
-        if just_alphas.match(substrings[1]): # Case 2.2
+        if isStatName(substrings[1]): # Case 2.2
+            if _debug_cases: print('Case 2.2') # pylint: disable=multiple-statements
             return [(substrings[0], None), (substrings[1], None)] # example "ATK - AGI -"
+        if _debug_cases: print('Case 2.3') # pylint: disable=multiple-statements
         return [(substrings[0], None)] # case 2.3
 
     # Length 3:
@@ -303,13 +314,17 @@ def fuzzyStatExtract(raw_line):
     # Case 3.3: A name, a name, and garbage (OCR lost the first value and misread the second value)
     # Case 3.4: A name, garbage, and another name (OCR misread the first value and lost the second value)
     if num_substrings == 3:
-        if just_numbers.match(substrings[1]) and just_alphas.match(substrings[2]): # Case 3.1
+        if substrings[1].isdecimal() and isStatName(substrings[2]): # Case 3.1
+            if _debug_cases: print('Case 3.1') # pylint: disable=multiple-statements
             return [(substrings[0], intOrNone(substrings[1])), (substrings[2], None)]
-        if just_alphas.match(substrings[1]) and just_numbers.match(substrings[2]): # Case 3.2
+        if isStatName(substrings[1]) and substrings[2].isdecimal(): # Case 3.2
+            if _debug_cases: print('Case 3.2') # pylint: disable=multiple-statements
             return [(substrings[0], None), (substrings[1], intOrNone(substrings[2]))]
-        if just_alphas.match(substrings[1]): # Case 3.3
+        if isStatName(substrings[1]): # Case 3.3
+            if _debug_cases: print('Case 3.3') # pylint: disable=multiple-statements
             return [(substrings[0], None), (substrings[1], None)]
-        if just_alphas.match(substrings[2]): # Case 3.4
+        if isStatName(substrings[2]): # Case 3.4
+            if _debug_cases: print('Case 3.4') # pylint: disable=multiple-statements
             return [(substrings[0], None), (substrings[2], None)]
 
     # Length 4:
@@ -319,15 +334,20 @@ def fuzzyStatExtract(raw_line):
     # Case 4.4: A name, garbage, another name, and an integer (OCR misread the first value)
     # Case 4.5: A name, garbage, another name, and garbage (OCR misread the final value)
     if num_substrings == 4:
-        if just_numbers.match(substrings[1]) and just_alphas.match(substrings[2]) and just_numbers.match(substrings[3]): # Case 4.1 (Happy case)
+        if substrings[1].isdecimal() and isStatName(substrings[2]) and substrings[3].isdecimal(): # Case 4.1 (Happy case)
+            if _debug_cases: print('Case 4.1') # pylint: disable=multiple-statements
             return [(substrings[0], intOrNone(substrings[1])), (substrings[2], intOrNone(substrings[3]))]
-        if just_numbers.match(substrings[1]) and just_alphas.match(substrings[2]): # Case 4.2
+        if substrings[1].isdecimal() and isStatName(substrings[2]): # Case 4.2
+            if _debug_cases: print('Case 4.2') # pylint: disable=multiple-statements
             return [(substrings[0], intOrNone(substrings[1])), (substrings[2], None)]
-        if just_alphas.match(substrings[1]): # Case 4.3
+        if isStatName(substrings[1]): # Case 4.3
+            if _debug_cases: print('Case 4.3') # pylint: disable=multiple-statements
             raise Exception('Malformed input')
-        if just_alphas.match(substrings[2]) and just_numbers.match(substrings[3]): # Case 4.4
+        if isStatName(substrings[2]) and substrings[3].isdecimal(): # Case 4.4
+            if _debug_cases: print('Case 4.4') # pylint: disable=multiple-statements
             return [(substrings[0], None), (substrings[2], intOrNone(substrings[3]))]
-        if just_alphas.match(substrings[2]): # Case 4.5
+        if isStatName(substrings[2]): # Case 4.5
+            if _debug_cases: print('Case 4.5') # pylint: disable=multiple-statements
             return [(substrings[0], None), (substrings[2], None)]
 
     # Anything else (5 groups in the split, anything that fell past 4.5 above, etc) cannot be handled. Give up.
