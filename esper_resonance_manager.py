@@ -275,28 +275,10 @@ class EsperResonanceManager:
 
         allRequests = [WorksheetUtils.generateRequestToSetCellText(sheetId, unit_row, esper_column_A1, priorityString)]
         if comment:
-            commentText = comment
+            comment_text = comment
             if comment == '<blank>':  # Allow clearing the comment
-                commentText = ''
-            updateCommentRequest = {
-                'updateCells': {
-                    'rows': [{
-                        'values': [{
-                            'note': commentText
-                        }]
-                    }],
-                    'fields': 'note',
-                    'range': {
-                        'sheetId': sheetId,
-                        'startRowIndex': unit_row-1,  # inclusive
-                        'endRowIndex': unit_row,  # exclusive
-                        'startColumnIndex': WorksheetUtils.fromA1(esper_column_A1)-1,  # inclusive
-                        'endColumnIndex': WorksheetUtils.fromA1(esper_column_A1)  # exclusive
-                    }
-                }
-            }
-            allRequests.append(updateCommentRequest)
-
+                comment_text = None
+            allRequests.append(WorksheetUtils.generateRequestToSetCellComment(sheetId, unit_row, esper_column_A1, comment_text))
         requestBody = {
             'requests': [allRequests]
         }

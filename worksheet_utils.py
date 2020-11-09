@@ -405,3 +405,34 @@ class WorksheetUtils:
             }
         }
         return updateCellsRequest
+
+    @staticmethod
+    def generateRequestToSetCellComment(sheetId, row_1_based: int, column_A1: str, text: str):
+        """Generate and return a Google Sheets request that will set the specified cell's comment to the specified text value (or clear it).
+
+        :param sheetId: the ID of the sheet (tab) within the spreadsheet to generate the request for
+        :param row_1_based: the 1-based row number of the cell to be updated
+        :param column_A1: The A1 notation of the column of the cell to be updated, i.e. a value of 'A' refers to the first column
+        :param text: The text to set; if this is None, the comment is cleared.
+        """
+        if text is None:
+            text = '' # Setting a blank comment is the same as clearing it.
+
+        updateCellsRequest = {
+            'updateCells': {
+                'rows': [{
+                    'values': [{
+                        'note': text
+                    }]
+                }],
+                'fields': 'note',
+                'range': {
+                    'sheetId': sheetId,
+                    'startRowIndex': row_1_based - 1,  # inclusive
+                    'endRowIndex': row_1_based,  # exclusive
+                    'startColumnIndex': WorksheetUtils.fromA1(column_A1)-1,  # inclusive
+                    'endColumnIndex': WorksheetUtils.fromA1(column_A1)  # exclusive
+                }
+            }
+        }
+        return updateCellsRequest
