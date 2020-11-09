@@ -219,7 +219,7 @@ class WorksheetUtils:
         :param set_header: if True, set a header row in the newly inserted column. Defaults to False (all remaining parameters ignored)
         :param header_row_index: The 0-based offset of the header row to set the value of, i.e. a value of zero refers to the first row
         :param header_text: The text to set in the header row
-        :param header_url: If set, converts the header_row_text to a hyperlink having the specified URL target.
+        :param header_url: If set, converts the header_text to a hyperlink having the specified URL target.
         """
         columnInteger = WorksheetUtils.fromA1(columnA1)
         inheritFromBefore = None
@@ -296,10 +296,10 @@ class WorksheetUtils:
         :param spreadsheet: the spreadsheet to generate requests for
         :param row_1_based: the row from which to copy formatting (first row is row 1) (see next parameter below)
         :param above_or_below: either 'above', meaning to insert just above row_1_based, or 'after', meaning to insert just below row_1_based
-        :param set_header: if True, set a header row in the newly inserted column. Defaults to False (all remaining parameters ignored)
+        :param set_header: if True, set a header column in the newly inserted row. Defaults to False (all remaining parameters ignored)
         :param header_column_A1: The A1 notation of the header column to set the value of, i.e. a value of 'A' refers to the first column
-        :param header_text: The text to set in the header row
-        :param header_url: If set, converts the header_row_text to a hyperlink having the specified URL target.
+        :param header_text: The text to set in the header column
+        :param header_url: If set, converts the header_text to a hyperlink having the specified URL target.
         """
         inheritFromBefore = None
         if above_or_below == 'above':
@@ -366,3 +366,42 @@ class WorksheetUtils:
             }
             allRequests.append(updateCellsRequest)
         return allRequests
+
+    @staticmethod
+    def generateRequestToSetCellText(sheetId, row_1_based: int, column_A1: str, text: str, url: str = None):
+        """Generate and return a Google Sheets request that will set the specified cell to the specified text value (with optional hyperlink).
+
+        :param sheetId: the ID of the sheet (tab) within the spreadsheet to generate the request for
+        :param row_1_based: the 1-based row number of the cell to be updated
+        :param column_A1: The A1 notation of the column of the cell to be updated, i.e. a value of 'A' refers to the first column
+        :param text: The text to set
+        :param url: If set, converts the text to a hyperlink having the specified URL target.
+        """
+        userEnteredValue = None
+        if url:
+            userEnteredValue = {
+                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                'formulaValue': '=HYPERLINK("' + url + '", "' + text + '")'
+            }
+        else:
+            userEnteredValue = {
+                'stringValue': text
+            }
+        updateCellsRequest = {
+            'updateCells': {
+                'rows': [{
+                    'values': [{
+                        'userEnteredValue': userEnteredValue
+                    }]
+                }],
+                'fields': 'userEnteredValue',
+                'range': {
+                    'sheetId': sheetId,
+                    'startRowIndex': row_1_based - 1,  # inclusive
+                    'endRowIndex': row_1_based,  # exclusive
+                    'startColumnIndex': WorksheetUtils.fromA1(column_A1)-1,  # inclusive
+                    'endColumnIndex': WorksheetUtils.fromA1(column_A1)  # exclusive
+                }
+            }
+        }
+        return updateCellsRequest

@@ -273,29 +273,7 @@ class EsperResonanceManager:
             raise ExposableException(
                 'Unknown priority value. Priority should be blank or one of "L", "low", "M", "medium", "H", "high"')
 
-        # Now write the new value
-        updateValueRequest = {
-            'updateCells': {
-                'rows': [{
-                    'values': [{
-                        'userEnteredValue': {
-                            'stringValue': priorityString
-                        }
-                    }]
-                }],
-                'fields': 'userEnteredValue',
-                'range': {
-                    'sheetId': sheetId,
-                    'startRowIndex': unit_row-1,  # inclusive
-                    'endRowIndex': unit_row,  # exclusive
-                    'startColumnIndex': WorksheetUtils.fromA1(esper_column_A1)-1,  # inclusive
-                    'endColumnIndex': WorksheetUtils.fromA1(esper_column_A1)  # exclusive
-                }
-            }
-        }
-        allRequests = []
-        allRequests.append(updateValueRequest)
-
+        allRequests = [WorksheetUtils.generateRequestToSetCellText(sheetId, unit_row, esper_column_A1, priorityString)]
         if comment:
             commentText = comment
             if comment == '<blank>':  # Allow clearing the comment
