@@ -209,17 +209,17 @@ class WorksheetUtils:
             'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
 
     @staticmethod
-    def generateRequestsToAddColumnToAllSheets(spreadsheet, columnA1: str, left_or_right_of: str, set_header_row: bool = False,
-                                               header_row_index: int = 0, header_row_text: str = None, header_row_url: str = None) -> [{}]:
+    def generateRequestsToAddColumnToAllSheets(spreadsheet, columnA1: str, left_or_right_of: str, set_header: bool = False,
+                                               header_row_index: int = 0, header_text: str = None, header_url: str = None) -> [{}]:
         """Generate and return a series of Google Sheets requests that will add a column (with optional header row) to every worksheet in the spreadsheet.
 
         :param spreadsheet: the spreadsheet to generate requests for
         :param column_A1: the column from which to copy formatting, in A1 notation (see next parameter below)
         :param left_or_right_of: either 'left-of', meaning to insert left-of columnA1, or 'right-of', meaning to insert right-of columnA1
-        :param set_header_row: if True, set a header row in the newly inserted column. Defaults to False (all remaining parameters ignored)
+        :param set_header: if True, set a header row in the newly inserted column. Defaults to False (all remaining parameters ignored)
         :param header_row_index: The 0-based offset of the header row to set the value of, i.e. a value of zero refers to the first row
-        :param header_row_text: The text to set in the header row
-        :param header_row_url: If set, converts the header_row_text to a hyperlink having the specified URL target.
+        :param header_text: The text to set in the header row
+        :param header_url: If set, converts the header_row_text to a hyperlink having the specified URL target.
         """
         columnInteger = WorksheetUtils.fromA1(columnA1)
         inheritFromBefore = None
@@ -249,20 +249,20 @@ class WorksheetUtils:
             }
             allRequests.append(insertDimensionRequest)
 
-            if not set_header_row:
+            if not set_header:
                 continue
 
             # Now add the header row to the new column on each sheet.
             startColumnIndex = columnInteger - 1
             userEnteredValue = None
-            if header_row_url:
+            if header_url:
                 userEnteredValue = {
                     # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
-                    'formulaValue': '=HYPERLINK("' + header_row_url + '", "' + header_row_text + '")'
+                    'formulaValue': '=HYPERLINK("' + header_url + '", "' + header_text + '")'
                 }
             else:
                 userEnteredValue = {
-                    'stringValue': header_row_text
+                    'stringValue': header_text
                 }
 
             updateCellsRequest = {
@@ -282,6 +282,85 @@ class WorksheetUtils:
                         'endRowIndex': header_row_index + 1,  # exclusive
                         'startColumnIndex': startColumnIndex,  # inclusive
                         'endColumnIndex': startColumnIndex + 1  # exclusive
+                    }
+                }
+            }
+            allRequests.append(updateCellsRequest)
+        return allRequests
+
+    @staticmethod
+    def generateRequestsToAddRowToAllSheets(spreadsheet, row_1_based: int, above_or_below: str, set_header: bool = False,
+                                               header_column_A1: str = None, header_text: str = None, header_url: str = None) -> [{}]:
+        """Generate and return a series of Google Sheets requests that will add a row (with optional header column) to every worksheet in the spreadsheet.
+
+        :param spreadsheet: the spreadsheet to generate requests for
+        :param row_1_based: the row from which to copy formatting (first row is row 1) (see next parameter below)
+        :param above_or_below: either 'above', meaning to insert just above row_1_based, or 'after', meaning to insert just below row_1_based
+        :param set_header: if True, set a header row in the newly inserted column. Defaults to False (all remaining parameters ignored)
+        :param header_column_A1: The A1 notation of the header column to set the value of, i.e. a value of 'A' refers to the first column
+        :param header_text: The text to set in the header row
+        :param header_url: If set, converts the header_row_text to a hyperlink having the specified URL target.
+        """
+        inheritFromBefore = None
+        if above_or_below == 'above':
+            inheritFromBefore = False  # Meaning, inherit from below
+        elif above_or_below == 'below':
+            inheritFromBefore = True  # Meaning, inherit from above
+            row_1_based += 1
+        else:
+            raise ExposableException('Incorrect parameter for position of new row, must be "above" or "below": ' + above_or_below)
+
+        allRequests = []
+        for sheet in spreadsheet['sheets']:
+            sheetId = sheet['properties']['sheetId']
+            # First create an 'insertDimension' request to add a blank row on each sheet.
+            insertDimensionRequest = {
+                'insertDimension': {
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
+                    'inheritFromBefore': inheritFromBefore,
+                    'range': {
+                        'sheetId': sheetId,
+                        'dimension': 'ROWS',
+                        'startIndex': row_1_based - 1,
+                        'endIndex': row_1_based
+                    }
+                }
+            }
+            allRequests.append(insertDimensionRequest)
+
+            if not set_header:
+                continue
+
+            # Now add the header row to the new column on each sheet.
+            startRowIndex = row_1_based - 1
+            userEnteredValue = None
+            if header_url:
+                userEnteredValue = {
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                    'formulaValue': '=HYPERLINK("' + header_url + '", "' + header_text + '")'
+                }
+            else:
+                userEnteredValue = {
+                    'stringValue': header_text
+                }
+
+            updateCellsRequest = {
+                'updateCells': {
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
+                    'rows': [{
+                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
+                        'values': [{
+                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
+                            'userEnteredValue':userEnteredValue
+                        }]
+                    }],
+                    'fields': 'userEnteredValue',
+                    'range': {
+                        'sheetId': sheetId,
+                        'startRowIndex': startRowIndex,  # inclusive
+                        'endRowIndex': startRowIndex+1,  # exclusive
+                        'startColumnIndex': WorksheetUtils.fromA1(header_column_A1) - 1,  # inclusive
+                        'endColumnIndex': WorksheetUtils.fromA1(header_column_A1)  # exclusive
                     }
                 }
             }

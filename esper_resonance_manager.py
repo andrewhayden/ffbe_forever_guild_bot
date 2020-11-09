@@ -55,26 +55,16 @@ class EsperResonanceManager:
         }
         # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
         self.spreadsheet_app.batchUpdate(spreadsheetId=target_spreadsheet_id, body=requestBody).execute()
-
         return
 
 
-    def addUnitRow(self, user_id: str, unit_name: str, unit_url: str, above_or_below: str, row1Based: str, sandbox: str):
+    def addUnitRow(self, user_id: str, unit_name: str, unit_url: str, above_or_below: str, row_1_based: str, sandbox: str):
         """Add a new row for a unit.
 
         The above_or_below parameter needs to be either the string 'above' or 'below'. The row should be in 1-based notation,
         i.e. the first row is row 1, not row 0.
         If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
         """
-        rowInteger = int(row1Based)
-        if above_or_below == 'above':
-            inheritFromBefore = False  # Meaning, inherit from below
-        elif above_or_below == 'below':
-            inheritFromBefore = True  # Meaning, inherit from above
-            rowInteger += 1
-        else:
-            raise ExposableException('Incorrect parameter for position of new row, must be "above" or "below": ' + above_or_below)
-
         if not AdminUtils.isAdmin(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id):
             raise ExposableException('You do not have permission to add a unit.')
 
@@ -84,58 +74,19 @@ class EsperResonanceManager:
         else:
             target_spreadsheet_id = self.esper_resonance_spreadsheet_id
         spreadsheet = self.spreadsheet_app.get(spreadsheetId=target_spreadsheet_id).execute()
+        int(row_1_based)
 
-        allRequests = []
-        for sheet in spreadsheet['sheets']:
-            sheetId = sheet['properties']['sheetId']
-            # First create an 'insertDimension' request to add a blank row on each sheet.
-            insertDimensionRequest = {
-                'insertDimension': {
-                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
-                    'inheritFromBefore': inheritFromBefore,
-                    'range': {
-                        'sheetId': sheetId,
-                        'dimension': 'ROWS',
-                        'startIndex': rowInteger - 1,
-                        'endIndex': rowInteger
-                    }
-                }
-            }
-            allRequests.append(insertDimensionRequest)
-
-            # Now add the unit data to the new row on each sheet.
-            startRowIndex = rowInteger - 1
-            updateCellsRequest = {
-                'updateCells': {
-                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
-                    'rows': [{
-                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
-                        'values': [{
-                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
-                            'userEnteredValue': {
-                                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
-                                'formulaValue': '=HYPERLINK("' + unit_url + '", "' + unit_name + '")'
-                            }
-                        }]
-                    }],
-                    'fields': 'userEnteredValue',
-                    'range': {
-                        'sheetId': sheetId,
-                        'startRowIndex': startRowIndex,  # inclusive
-                        'endRowIndex': startRowIndex+1,  # exclusive
-                        'startColumnIndex': 1,  # inclusive
-                        'endColumnIndex': 2  # exclusive
-                    }
-                }
-            }
-            allRequests.append(updateCellsRequest)
-
+        allRequests = WorksheetUtils.generateRequestsToAddRowToAllSheets(
+            spreadsheet, int(row_1_based), above_or_below,
+            True, # Set a header column...
+            'B', # ... On the second column (A1 notation)
+            unit_name, # With text content being the unit name
+            unit_url) # As a hyperlink to the unit URL
         requestBody = {
             'requests': [allRequests]
         }
         # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
         self.spreadsheet_app.batchUpdate(spreadsheetId=target_spreadsheet_id, body=requestBody).execute()
-
         return
 
 
