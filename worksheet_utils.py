@@ -254,9 +254,17 @@ class WorksheetUtils:
 
             # Now add the header row to the new column on each sheet.
             startColumnIndex = columnInteger - 1
-            headerCellContent = header_row_text
+            userEnteredValue = None
             if header_row_url:
-                headerCellContent = '=HYPERLINK("' + header_row_url + '", "' + header_row_text + '")'
+                userEnteredValue = {
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                    'formulaValue': '=HYPERLINK("' + header_row_url + '", "' + header_row_text + '")'
+                }
+            else:
+                userEnteredValue = {
+                    'stringValue': header_row_text
+                }
+
             updateCellsRequest = {
                 'updateCells': {
                     # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
@@ -264,10 +272,7 @@ class WorksheetUtils:
                         # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
                         'values': [{
                             # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
-                            'userEnteredValue': {
-                                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
-                                'formulaValue': headerCellContent
-                            }
+                            'userEnteredValue': userEnteredValue
                         }]
                     }],
                     'fields': 'userEnteredValue',
