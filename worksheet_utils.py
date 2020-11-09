@@ -255,7 +255,7 @@ class WorksheetUtils:
             # Now add the header row to the new column on each sheet.
             startColumnIndex = columnInteger - 1
             headerCellContent = header_row_text
-            if headerCellContent:
+            if header_row_url:
                 headerCellContent = '=HYPERLINK("' + header_row_url + '", "' + header_row_text + '")'
             updateCellsRequest = {
                 'updateCells': {
