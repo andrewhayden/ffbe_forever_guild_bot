@@ -35,15 +35,6 @@ class EsperResonanceManager:
         The left_or_right_of parameter needs to be either the string 'left-of' or 'right-of'. The column should be in A1 notation.
         If sandbox is True, uses a sandbox sheet so that the admin can ensure the results are good before committing to everyone.
         """
-        columnInteger = WorksheetUtils.fromA1(columnA1)
-        if left_or_right_of == 'left-of':
-            inheritFromBefore = False  # Meaning, inherit from right
-        elif left_or_right_of == 'right-of':
-            inheritFromBefore = True  # Meaning, inherit from left
-            columnInteger += 1
-        else:
-            raise ExposableException('Incorrect parameter for position of new column, must be "left-of" or "right-of": ' + left_or_right_of)
-
         if not AdminUtils.isAdmin(self.spreadsheet_app, self.access_control_spreadsheet_id, user_id):
             raise ExposableException('You do not have permission to add an esper.')
 
@@ -53,52 +44,12 @@ class EsperResonanceManager:
         else:
             target_spreadsheet_id = self.esper_resonance_spreadsheet_id
         spreadsheet = self.spreadsheet_app.get(spreadsheetId=target_spreadsheet_id).execute()
-
-        allRequests = []
-        for sheet in spreadsheet['sheets']:
-            sheetId = sheet['properties']['sheetId']
-            # First create an 'insertDimension' request to add a blank column on each sheet.
-            insertDimensionRequest = {
-                'insertDimension': {
-                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
-                    'inheritFromBefore': inheritFromBefore,
-                    'range': {
-                        'sheetId': sheetId,
-                        'dimension': 'COLUMNS',
-                        'startIndex': columnInteger - 1,
-                        'endIndex': columnInteger
-                    }
-                }
-            }
-            allRequests.append(insertDimensionRequest)
-
-            # Now add the esper data to the new column on each sheet.
-            startColumnIndex = columnInteger - 1
-            updateCellsRequest = {
-                'updateCells': {
-                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
-                    'rows': [{
-                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
-                        'values': [{
-                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
-                            'userEnteredValue': {
-                                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
-                                'formulaValue': '=HYPERLINK("' + esper_url + '", "' + esper_name + '")'
-                            }
-                        }]
-                    }],
-                    'fields': 'userEnteredValue',
-                    'range': {
-                        'sheetId': sheetId,
-                        'startRowIndex': 1,  # inclusive
-                        'endRowIndex': 2,  # exclusive
-                        'startColumnIndex': startColumnIndex,  # inclusive
-                        'endColumnIndex': startColumnIndex+1  # exclusive
-                    }
-                }
-            }
-            allRequests.append(updateCellsRequest)
-
+        allRequests = WorksheetUtils.generateRequestsToAddColumnToAllSheets(
+            spreadsheet, columnA1, left_or_right_of,
+            True, # Set a header row...
+            1, # ...On the second row (row index is zero-based)
+            esper_name, # With text content being the esper name
+            esper_url) # As a hyperlink to the esper URL
         requestBody = {
             'requests': [allRequests]
         }

@@ -207,3 +207,78 @@ class WorksheetUtils:
             'Multiple matches for ```{0}``` Please make your text more specific and try again. '\
             'For an exact match, enclose your text in double quotes. '\
             'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
+
+    @staticmethod
+    def generateRequestsToAddColumnToAllSheets(spreadsheet, columnA1: str, left_or_right_of: str, set_header_row: bool = False,
+                                               header_row_index: int = 0, header_row_text: str = None, header_row_url: str = None) -> [{}]:
+        """Generate and return a series of Google Sheets requests that will add a column (with optional header row) to every worksheet in the spreadsheet.
+
+        :param spreadsheet: the spreadsheet to generate requests for
+        :param column_A1: the column from which to copy formatting, in A1 notation (see next parameter below)
+        :param left_or_right_of: either 'left-of', meaning to insert left-of columnA1, or 'right-of', meaning to insert right-of columnA1
+        :param set_header_row: if True, set a header row in the newly inserted column. Defaults to False (all remaining parameters ignored)
+        :param header_row_index: The 0-based offset of the header row to set the value of, i.e. a value of zero refers to the first row
+        :param header_row_text: The text to set in the header row
+        :param header_row_url: If set, converts the header_row_text to a hyperlink having the specified URL target.
+        """
+        columnInteger = WorksheetUtils.fromA1(columnA1)
+        inheritFromBefore = None
+        if left_or_right_of == 'left-of':
+            inheritFromBefore = False  # Meaning, inherit from right
+        elif left_or_right_of == 'right-of':
+            inheritFromBefore = True  # Meaning, inherit from left
+            columnInteger += 1
+        else:
+            raise ExposableException('Incorrect parameter for position of new column, must be "left-of" or "right-of": ' + left_or_right_of)
+
+        allRequests = []
+        for sheet in spreadsheet['sheets']:
+            sheetId = sheet['properties']['sheetId']
+            # First create an 'insertDimension' request to add a blank column on each sheet.
+            insertDimensionRequest = {
+                'insertDimension': {
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#insertdimensionrequest
+                    'inheritFromBefore': inheritFromBefore,
+                    'range': {
+                        'sheetId': sheetId,
+                        'dimension': 'COLUMNS',
+                        'startIndex': columnInteger - 1,
+                        'endIndex': columnInteger
+                    }
+                }
+            }
+            allRequests.append(insertDimensionRequest)
+
+            if not set_header_row:
+                continue
+
+            # Now add the header row to the new column on each sheet.
+            startColumnIndex = columnInteger - 1
+            headerCellContent = header_row_text
+            if headerCellContent:
+                headerCellContent = '=HYPERLINK("' + header_row_url + '", "' + header_row_text + '")'
+            updateCellsRequest = {
+                'updateCells': {
+                    # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#updatecellsrequest
+                    'rows': [{
+                        # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/sheets#RowData
+                        'values': [{
+                            # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/cells#CellData
+                            'userEnteredValue': {
+                                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                                'formulaValue': headerCellContent
+                            }
+                        }]
+                    }],
+                    'fields': 'userEnteredValue',
+                    'range': {
+                        'sheetId': sheetId,
+                        'startRowIndex': header_row_index,  # inclusive
+                        'endRowIndex': header_row_index + 1,  # exclusive
+                        'startColumnIndex': startColumnIndex,  # inclusive
+                        'endColumnIndex': startColumnIndex + 1  # exclusive
+                    }
+                }
+            }
+            allRequests.append(updateCellsRequest)
+        return allRequests
