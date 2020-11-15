@@ -44,8 +44,8 @@ Now we will create the config file ```bot_config.json``` in the same directory a
 ```
 {
   "esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
-  "sandbox_esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here-JbHFk-s4isw3iMlglRHZQtgmaG1_-M",
-  "access_control_spreadsheet_id": "your_google_spreadsheet_id_here-kfGjbGzIqGxBCyBLxjcWkWczZJ7On0",
+  "sandbox_esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
+  "access_control_spreadsheet_id": "your_google_spreadsheet_id_here",
   "discord_bot_token": "your_discord_bot_token_here"
 }
 ```
@@ -87,8 +87,8 @@ First, set up the configuration file ```integration_test_config.json``` in the s
 different than the IDs you specify in the ```bot_config.json```. This is super important so bears saying a second time: **The integration test spreadsheets MUST NOT BE THE SAME as the regular spreadsheets that you use in bot_config.json!** These sheets will be wiped every time you run the integration tests! You have been warned!
 ```
   "esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
-  "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here-JbHFk-s4isw3iMlglRHZQtgmaG1_-M",
-  "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here-kfGjbGzIqGxBCyBLxjcWkWczZJ7On0"
+  "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
+  "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here"
 ```
 
 To run the integration tests, use the following commands the same way you'd run the bot, but with a different script:
