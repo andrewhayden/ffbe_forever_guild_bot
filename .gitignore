@@ -1,5 +1,6 @@
 bot-env
 bot_config.json
+integration_test_config.json
 google_credentials.json
 google_token.pickle
 credentials.json:Zone.Identifier

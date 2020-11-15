@@ -10,6 +10,7 @@ Steps to prep your environment to work on or run this bot:
 * sudo apt-get install python3-distutils
 * sudo apt-get install python3.7-venv
 * sudo apt-get install libgl1-mesa-glx
+* sudo apt-get install tesseract-ocr
 * curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 * sudo python3.7 get-pip.py
 * python3.7 -m venv bot-env
@@ -22,9 +23,7 @@ After checkout, and whenever you want to run the bot:
 * source bot-env/bin/activate
 
 Now configure the bot to connect to discord:
-* Visit https://discordpy.readthedocs.io/en/latest/discord.html and follow instructions to create your bot on Discord
-* Create a file called bot_config.json in the checkout directory. Add the following JSON bindings:
-  * "discord_bot_token": "&lt;your discord bot token&gt;"
+* Visit https://discordpy.readthedocs.io/en/latest/discord.html and follow instructions to create your bot on Discord. Make a note of your token.
 * Back in the Discord console, generate your invite link. Make sure to give the following permissions in the invite URL:
   * Send Messages
   * Embed Links
@@ -34,24 +33,31 @@ Now configure the bot to connect to discord:
 * Use the invitation link to invite the bot to a server that you have the authority to add it to.
   * It's probably best to make your own private server first and test everything out.
 
-Now configure the bot to connect to Google
+Now we prepare to connect to Google
 * Visit https://developers.google.com/sheets/api/quickstart/python and follow instructions to create an OAuth app.
 * When prompted how to configure, choose "Desktop Application"
 * Download the credentials file and place it in the checkout directory. Rename it to google_credentials.json
 * In your python virtual environemt:
   * pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
-* Open the bot_config.json you created earlier and set the Google spreadsheet you want the bot to manage, as well as the ID of a sandbox for trying out potentially-problematic commands like adding espers and units:
-  * "esper_resonance_spreadsheet_id": "&lt;your google spreadsheet ID&gt;"
-  * "sandbox_esper_resonance_spreadsheet_id": "&lt;your google spreadsheet ID&gt;"
-* Also add the ID of the administrative spreadsheet where you will bind Discord Snowflake IDs to guild aliases (used as tab names in the Resonance spreadsheet), and where you can set admin rights:
-  * "access_control_spreadsheet_id": "&lt;your google spreadsheet ID&gt;"
+
+Now we will create the config file ```bot_config.json``` in the same directory as the source code. Here we will set the Google spreadsheet you want the bot to manage, as well as the ID of a sandbox for trying out potentially-problematic commands like adding espers and units. Also add the ID of the administrative spreadsheet where you will bind Discord Snowflake IDs to guild aliases (used as tab names in the Resonance spreadsheet), and where you can set admin rights and the Discord bot token from earlier. Here is a sample ```bot_config.json```:
+```
+{
+  "esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
+  "sandbox_esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here-JbHFk-s4isw3iMlglRHZQtgmaG1_-M",
+  "access_control_spreadsheet_id": "your_google_spreadsheet_id_here-kfGjbGzIqGxBCyBLxjcWkWczZJ7On0",
+  "discord_bot_token": "your_discord_bot_token_here"
+}
+```
 
 You're ready to start now. Start the bot:
-* In your python virtual environemt:
-  * python3 ffbe_forever_guild_bot.py
-* You will be prompted to visit a URL to authorize the bot for the first time. Do so.
+```
+python3 -m venv bot-env
+source bot-env/bin/activate
+python3 ffbe_forever_guild_bot.py
+```
+You will be prompted to visit a URL to authorize the bot for the first time. Do so. That's it! The bot should be up and running now.
 
-That's it! The bot should be up and running now.
 
 ## The Access Control spreadsheet
 
@@ -68,17 +74,26 @@ For reads, a similar process is performed but it is non-authoritative, because r
 
 ## Extra Credit: OCR
 There is experimental support for extracting data from screenshots. The initial support is for vision cards only, and just tries to extract the text from a file (when run standalone)
-or from an image attachment (if uploaded to the channel). To make this work, you need to do some extra steps.
-Install Google's OCR library, [tesseract-ocr](https://github.com/tesseract-ocr/tesseract), and the [pytesseract](https://pypi.org/project/pytesseract/) library for interacting with it. We'll also need [OpenCV](https://pypi.org/project/opencv-python/) and [NumPy](https://numpy.org/) amd imutils.
+or from an image attachment (if uploaded to the channel). To make this work, you need...
+* Google's OCR library, [tesseract-ocr](https://github.com/tesseract-ocr/tesseract)...
+* ... and the [pytesseract](https://pypi.org/project/pytesseract/) library for interacting with it.
+* [OpenCV](https://pypi.org/project/opencv-python/)
+* [NumPy](https://numpy.org/) amd imutils.
 
-* sudo apt install tesseract-ocr
-* (If you haven't already entered the bot environment) source bot-env/bin/activate
-* pip install pytesseract
-* (this may install numpy automatically) pip install opencv-python
-* pip install numpy
-* pip install imutils
 
-You'll also want to run:
-* pylint --generate-rcfile > .pylintrc
-... and then modify the top line to read as follows:
-* extension-pkg-whitelist=cv2
+## Running Integration Tests
+The bot now includes rudimentary integration tests. They are still under construction.
+First, set up the configuration file ```integration_test_config.json``` in the same directory as ```bot_config.json```. They look very similar, but the IDs of the Google spreadsheets that you specify here must be 
+different than the IDs you specify in the ```bot_config.json```. This is super important so bears saying a second time: **The integration test spreadsheets MUST NOT BE THE SAME as the regular spreadsheets that you use in bot_config.json!** These sheets will be wiped every time you run the integration tests! You have been warned!
+```
+  "esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
+  "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here-JbHFk-s4isw3iMlglRHZQtgmaG1_-M",
+  "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here-kfGjbGzIqGxBCyBLxjcWkWczZJ7On0"
+```
+
+To run the integration tests, use the following commands the same way you'd run the bot, but with a different script:
+```
+python3 -m venv bot-env
+source bot-env/bin/activate
+python3 wotv_bot_integration_test.py
+```
