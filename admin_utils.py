@@ -6,13 +6,13 @@ from wotv_bot_common import ExposableException
 class AdminUtils:
     """Static utility methods for checking access and indirecting from user ID to a symbolic name."""
     # The name of the tab that contains the user bindings that map Discord IDs to data tabs.
-    __USERS_TAB_NAME = 'Users'
+    USERS_TAB_NAME = 'Users'
 
     @staticmethod
     def isAdmin(spreadsheet_app, access_control_spreadsheet_id, user_id):
         """Return True if the specified user id has administrator permissions."""
         # Discord IDs are in column A, the associated tab name is in column B, and if 'Admin' is in column C, then it's an admin.
-        range_name = WorksheetUtils.safeWorksheetName(AdminUtils.__USERS_TAB_NAME) + '!A:C'
+        range_name = WorksheetUtils.safeWorksheetName(AdminUtils.USERS_TAB_NAME) + '!A:C'
         rows = None
         try:
             values = spreadsheet_app.values().get(spreadsheetId=access_control_spreadsheet_id, range=range_name).execute()
@@ -39,7 +39,7 @@ class AdminUtils:
         If the ID can't be found, an exception is raised with a safe error message that can be shown publicly in Discord.
         """
         # Discord IDs are in column A, the associated tab name is in column B
-        range_name = WorksheetUtils.safeWorksheetName(AdminUtils.__USERS_TAB_NAME) + '!A:B'
+        range_name = WorksheetUtils.safeWorksheetName(AdminUtils.USERS_TAB_NAME) + '!A:B'
         rows = None
         try:
             values = spreadsheetApp.values().get(spreadsheetId=access_control_spreadsheet_id, range=range_name).execute()

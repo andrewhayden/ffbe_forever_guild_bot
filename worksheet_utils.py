@@ -187,7 +187,7 @@ class WorksheetUtils:
         document_id: The ID of the spreadsheet in which to perform the search
         sheet_name: The name of the sheet in which to perform the search
         search_text: The text to find (see rules below)
-        columnA1: The column in which to search (in A1 notation)
+        rowNumber: The row in which to search (1-based, can be an itneger or a string representing an integer)
 
         Search works as follows:
         1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
@@ -195,7 +195,7 @@ class WorksheetUtils:
         3. Else, if there is exactly one cell whose case-insensitive name contains all of the words in the specified search_text, it is returned.
         4. Else, an exception is raised with a safe error message that can be shown publicly.
         """
-        range_name = WorksheetUtils.safeWorksheetName(sheet_name) + '!' + rowNumber + ':' + rowNumber
+        range_name = WorksheetUtils.safeWorksheetName(sheet_name) + '!' + str(rowNumber) + ':' + str(rowNumber)
         search_rows = None
         normalized_search_text = WorksheetUtils.normalizeName(search_text)
         try:
