@@ -40,6 +40,14 @@ class WotvBotIntegrationTests:
     TEST_ESPER2_NAME = 'TestEsper2'
     TEST_ESPER2_URL = 'http://www.example.com/2'
 
+    # A test unit
+    TEST_UNIT1_NAME = 'TestUnit1'
+    TEST_UNIT1_URL = 'http://www.example.com/unit1'
+
+    # Another test unit
+    TEST_UNIT2_NAME = 'TestUnit2'
+    TEST_UNIT2_URL = 'http://www.example.com/unit2'
+
     """An instance of the bot, configured to manage specific spreadsheets and using Discord and Google credentials."""
     def __init__(self, wotv_bot_config: WotvBotConfig):
         self.wotv_bot_config = wotv_bot_config
@@ -196,7 +204,8 @@ class WotvBotIntegrationTests:
         (column_string, cell_value) = WorksheetUtils.fuzzyFindColumn(
             self.wotv_bot_config.spreadsheet_app,
             self.wotv_bot_config.esper_resonance_spreadsheet_id,
-            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME, '"' + WotvBotIntegrationTests.TEST_ESPER1_NAME +'"', 2)
+            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME,
+            '"' + WotvBotIntegrationTests.TEST_ESPER1_NAME +'"', 2)
         self.assertEqual('D', column_string)
         # TODO: Assert that the content is a hyperlink
         self.assertEqual(WotvBotIntegrationTests.TEST_ESPER1_NAME, cell_value)
@@ -210,7 +219,8 @@ class WotvBotIntegrationTests:
         (column_string, cell_value) = WorksheetUtils.fuzzyFindColumn(
             self.wotv_bot_config.spreadsheet_app,
             self.wotv_bot_config.esper_resonance_spreadsheet_id,
-            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME, '"' + WotvBotIntegrationTests.TEST_ESPER2_NAME +'"', 2)
+            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME,
+            '"' + WotvBotIntegrationTests.TEST_ESPER2_NAME +'"', 2)
         self.assertEqual('D', column_string)
         # TODO: Assert that the content is a hyperlink
         self.assertEqual(WotvBotIntegrationTests.TEST_ESPER2_NAME, cell_value)
@@ -219,17 +229,59 @@ class WotvBotIntegrationTests:
         (column_string, cell_value) = WorksheetUtils.fuzzyFindColumn(
             self.wotv_bot_config.spreadsheet_app,
             self.wotv_bot_config.esper_resonance_spreadsheet_id,
-            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME, '"' + WotvBotIntegrationTests.TEST_ESPER1_NAME +'"', 2)
+            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME,
+            '"' + WotvBotIntegrationTests.TEST_ESPER1_NAME +'"', 2)
         self.assertEqual('E', column_string)
         self.assertEqual(WotvBotIntegrationTests.TEST_ESPER1_NAME, cell_value)
 
-        # Now ensure that the original esper is still there and still
+    async def testAdminAddUnit_AsAdmin(self): # pylint: disable=missing-function-docstring
+        self.resetEsperResonance()
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # Add one unit to a blank sheet
+        message_text = '!admin-add-unit ' + self.TEST_UNIT1_NAME + '|' + self.TEST_UNIT1_URL + '|below|4'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeAdminMessage(message_text))
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_ADMIN_USER_SNOWFLAKE_ID + '>: Added unit ' + WotvBotIntegrationTests.TEST_UNIT1_NAME + '!'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        (row_string, cell_value) = WorksheetUtils.fuzzyFindRow(
+            self.wotv_bot_config.spreadsheet_app,
+            self.wotv_bot_config.esper_resonance_spreadsheet_id,
+            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME,
+            '"' + WotvBotIntegrationTests.TEST_UNIT1_NAME +'"', 'B')
+        self.assertEqual(5, row_string)
+        # TODO: Assert that the content is a hyperlink
+        self.assertEqual(WotvBotIntegrationTests.TEST_UNIT1_NAME, cell_value)
+
+        # Add another unit and make sure it pushes the previously-added one down.
+        message_text = '!admin-add-unit ' + self.TEST_UNIT2_NAME + '|' + self.TEST_UNIT2_URL + '|above|5'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeAdminMessage(message_text))
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_ADMIN_USER_SNOWFLAKE_ID + '>: Added unit ' + WotvBotIntegrationTests.TEST_UNIT2_NAME + '!'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        (row_string, cell_value) = WorksheetUtils.fuzzyFindRow(
+            self.wotv_bot_config.spreadsheet_app,
+            self.wotv_bot_config.esper_resonance_spreadsheet_id,
+            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME,
+            '"' + WotvBotIntegrationTests.TEST_UNIT2_NAME +'"', 'B')
+        self.assertEqual(5, row_string)
+        # TODO: Assert that the content is a hyperlink
+        self.assertEqual(WotvBotIntegrationTests.TEST_UNIT2_NAME, cell_value)
+
+        # Test that first unit is present and was pushed down.
+        (row_string, cell_value) = WorksheetUtils.fuzzyFindRow(
+            self.wotv_bot_config.spreadsheet_app,
+            self.wotv_bot_config.esper_resonance_spreadsheet_id,
+            self.RESONANCE_SPREADSHEET_DEFAULT_TAB_NAME,
+            '"' + WotvBotIntegrationTests.TEST_UNIT1_NAME +'"', 'B')
+        self.assertEqual(6, row_string)
+        self.assertEqual(WotvBotIntegrationTests.TEST_UNIT1_NAME, cell_value)
+
     async def runAllTests(self):
         """Run all tests in the integration test suite."""
-        self.resetEsperResonance()
         self.resetAdmin()
         await self.testWhoAmI()
         await self.testAdminAddEsper_AsAdmin()
+        await self.testAdminAddUnit_AsAdmin()
         print('Tests passed!')
 
 if __name__ == "__main__":
