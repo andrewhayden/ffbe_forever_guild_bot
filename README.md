@@ -95,7 +95,7 @@ different than the IDs you specify in the ```bot_config.json```. This is super i
 }
 ```
 
-To run the integration tests, use the following commands (or run the convenience script [run_integrations_tests.sh](run_integrations_tests.sh), which does the same thing):
+To run the integration tests, use the following commands (or run the convenience script [run_integration_tests.sh](run_integration_tests.sh), which does the same thing):
 ```
 python3 -m venv bot-env
 source bot-env/bin/activate
