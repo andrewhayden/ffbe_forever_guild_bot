@@ -1,7 +1,9 @@
 """Integration tests for the FFBEForever Guild Bot"""
+from __future__ import annotations
 import asyncio
 import json
 import logging
+import sys
 import time
 import types
 
@@ -162,25 +164,28 @@ class WotvBotIntegrationTests:
         }
         self.wotv_bot_config.spreadsheet_app.batchUpdate(spreadsheetId=self.wotv_bot_config.access_control_spreadsheet_id, body=requestBody).execute()
 
-    def makeMessage(self, message_text: str):
-        """Construct a mock message object to send to the bot."""
+    def makeMessage(
+            self,
+            message_text: str,
+            display_name: str=TEST_USER_DISPLAY_NAME,
+            snowflake_id: str=TEST_USER_SNOWFLAKE_ID,
+            discriminator: str=TEST_USER_DISCRIMINATOR):
+        """Construct a mock message object to send to the bot. By default uses TEST_USER settings."""
         result = types.SimpleNamespace()
         result.author = types.SimpleNamespace()
-        result.author.display_name = WotvBotIntegrationTests.TEST_USER_DISPLAY_NAME
-        result.author.id = WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID
-        result.author.discriminator = WotvBotIntegrationTests.TEST_USER_DISCRIMINATOR
+        result.author.display_name = display_name
+        result.author.id = snowflake_id
+        result.author.discriminator = discriminator
         result.content = message_text
         return result
 
     def makeAdminMessage(self, message_text: str):
-        """Construct a mock message object to send to the bot."""
-        result = types.SimpleNamespace()
-        result.author = types.SimpleNamespace()
-        result.author.display_name = WotvBotIntegrationTests.TEST_ADMIN_USER_DISPLAY_NAME
-        result.author.id = WotvBotIntegrationTests.TEST_ADMIN_USER_SNOWFLAKE_ID
-        result.author.discriminator = WotvBotIntegrationTests.TEST_ADMIN_USER_DISCRIMINATOR
-        result.content = message_text
-        return result
+        """Construct a mock message object to send to the bot, as the TEST_ADMIN_USER."""
+        return self.makeMessage(
+            message_text,
+            WotvBotIntegrationTests.TEST_ADMIN_USER_DISPLAY_NAME,
+            WotvBotIntegrationTests.TEST_ADMIN_USER_SNOWFLAKE_ID,
+            WotvBotIntegrationTests.TEST_ADMIN_USER_DISCRIMINATOR)
 
     @staticmethod
     def assertEqual(expected, actual):
@@ -363,11 +368,52 @@ class WotvBotIntegrationTests:
         assert len(spreadsheet['sheets']) == 1 # Should not be a second tab in the resonance spreadsheet, user should not have been added.
         assert not AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, admin_user_snowflake)
 
+    async def testCommand_ResSet(self):
+        """Test various combinations of setting esper resonance."""
+        self.resetAdmin()
+        self.resetEsperResonance()
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # First set up a unit and esper to set the resonance on.
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-unit ' + self.TEST_UNIT1_NAME + '|' + self.TEST_UNIT1_URL + '|below|2'))
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-esper ' + self.TEST_ESPER1_NAME + '|' + self.TEST_ESPER1_URL + '|right-of|B'))
+        # Initial command to set resonance should result in default to low priority, with no previous resonance returned.
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-user 1234|FakeyMcFakeFace|normal'))
+        message = self.makeMessage('!res-set ' + self.TEST_UNIT1_NAME + '/' + self.TEST_ESPER1_NAME + ' 7', 'FakeyMcFakeFace', '1234', '#5678')
+        (response_text, reaction) = await wotv_bot.handleMessage(message)
+        expected_text = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
+            '1234', self.TEST_UNIT1_NAME, self.TEST_ESPER1_NAME, 'Low Priority: 7/10', '(not set)')
+        self.assertEqual(expected_text, response_text)
+        assert reaction is not None
+        self.cooldown(10)
+        # Now set a medium priority, and expect to see low priority of 7 previously set.
+        message = self.makeMessage('!res-set ' + self.TEST_UNIT1_NAME + '/' + self.TEST_ESPER1_NAME + ' 8/m', 'FakeyMcFakeFace', '1234', '#5678')
+        (response_text, reaction) = await wotv_bot.handleMessage(message)
+        expected_text = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
+            '1234', self.TEST_UNIT1_NAME, self.TEST_ESPER1_NAME, 'Medium Priority: 8/10', 'Low Priority: 7/10')
+        self.assertEqual(expected_text, response_text)
+        assert reaction is not None
+        self.cooldown(10)
+        # Now set a high priority, and expect to see medium priority of 8 previously set.
+        message = self.makeMessage('!res-set ' + self.TEST_UNIT1_NAME + '/' + self.TEST_ESPER1_NAME + ' 9/h', 'FakeyMcFakeFace', '1234', '#5678')
+        (response_text, reaction) = await wotv_bot.handleMessage(message)
+        expected_text = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
+            '1234', self.TEST_UNIT1_NAME, self.TEST_ESPER1_NAME, 'High Priority: 9/10', 'Medium Priority: 8/10')
+        self.assertEqual(expected_text, response_text)
+        assert reaction is not None
+        self.cooldown(10)
+        # Finally, set priority to 10.
+        message = self.makeMessage('!res-set ' + self.TEST_UNIT1_NAME + '/' + self.TEST_ESPER1_NAME + ' 10', 'FakeyMcFakeFace', '1234', '#5678')
+        (response_text, reaction) = await wotv_bot.handleMessage(message)
+        expected_text = '<@{0}>: {1}/{2} resonance has been set to {3} (was: {4})'.format(
+            '1234', self.TEST_UNIT1_NAME, self.TEST_ESPER1_NAME, '10/10', 'High Priority: 9/10')
+        self.assertEqual(expected_text, response_text)
+        assert reaction is not None
+
     @staticmethod
-    def cooldown():
+    def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
-        for i in range (30, 1, -1):
-            print('>>> Google API cooldown pause (30s): ' + str(i) + '...', end='\r', flush=True)
+        for i in range (time_secs, 0, -1):
+            print('>>> Google API cooldown pause (' + str(time_secs) + 's): ' + str(i) + '...', end='\r', flush=True)
             time.sleep(1)
 
     async def runAllTests(self):
@@ -399,7 +445,9 @@ class WotvBotIntegrationTests:
 
         print('>>> Test: testCommand_AdminAddUser_AsNonAdmin')
         await self.testCommand_AdminAddUser_AsNonAdmin()
-        print('All integration tests passed!')
+
+        print('>>> Test: testCommand_ResSet')
+        await self.testCommand_ResSet()
 
 if __name__ == "__main__":
     logger = logging.getLogger('discord')
@@ -417,5 +465,17 @@ if __name__ == "__main__":
     _config.spreadsheet_app = WorksheetUtils.getSpreadsheetsAppClient()
     suite = WotvBotIntegrationTests(_config)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(suite.runAllTests())
+    if len(sys.argv) != 2:
+        raise Exception('Run the script with either the argument "all" (without quotes) to run all tests, or the name of a specific test to run.')
+    if sys.argv[1] == 'all':
+        print('Running all integration tests.')
+        loop.run_until_complete(suite.runAllTests())
+        print('All integration tests passed!')
+    else:
+        method_to_invoke = getattr(suite, sys.argv[1])
+        if method_to_invoke is None:
+            raise Exception('No such method available to invoke: ' + sys.argv[1])
+        print('Running specific integration test: ' + sys.argv[1])
+        loop.run_until_complete(method_to_invoke())
+        print(sys.argv[1] + ' passed!')
     loop.close()
