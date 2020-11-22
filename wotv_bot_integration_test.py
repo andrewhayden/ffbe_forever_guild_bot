@@ -409,6 +409,47 @@ class WotvBotIntegrationTests:
         self.assertEqual(expected_text, response_text)
         assert reaction is not None
 
+    async def testCommand_Res(self):
+        """Test various combinations of getting esper resonance."""
+        self.resetAdmin()
+        self.resetEsperResonance()
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # First set up a unit and esper to set the resonance on.
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-unit Little Leela|' + self.TEST_UNIT1_URL + '|below|2'))
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-unit Little Leela (Halloween)|' + self.TEST_UNIT2_URL + '|below|3'))
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-esper Chocobo|' + self.TEST_ESPER1_URL + '|right-of|B'))
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-esper Red Chocobo|' + self.TEST_ESPER2_URL + '|right-of|C'))
+        self.cooldown(15)
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-user 1234|FakeyMcFakeFace|normal'))
+        self.cooldown(15)
+        # Set resonance on both units and both espers so we can force the most complex returns of multiple entries
+        # Also use a real example so we can do some fuzzy match searches
+        await wotv_bot.handleMessage(self.makeMessage('!res-set Little Leela (Halloween)/Chocobo 1', 'FakeyMcFakeFace', '1234', '#5678'))
+        await wotv_bot.handleMessage(self.makeMessage('!res-set Little Leela (Halloween)/Red Chocobo 2/m', 'FakeyMcFakeFace', '1234', '#5678'))
+        await wotv_bot.handleMessage(self.makeMessage('!res-set "Little Leela"/Chocobo 3/h', 'FakeyMcFakeFace', '1234', '#5678'))
+        await wotv_bot.handleMessage(self.makeMessage('!res-set "Little Leela"/Red Chocobo 10', 'FakeyMcFakeFace', '1234', '#5678'))
+        self.cooldown(15)
+        # Now attempt a fuzzy match unit search...
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res ween la', 'FakeyMcFakeFace', '1234', '#5678'))
+        expected_text = '<@1234>: resonance listing for Little Leela (Halloween):\nChocobo: Low Priority: 1/10\nRed Chocobo: Medium Priority: 2/10'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # And an exact-match unit search...
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res "Little Leela"', 'FakeyMcFakeFace', '1234', '#5678'))
+        expected_text = '<@1234>: resonance listing for Little Leela:\nChocobo: High Priority: 3/10\nRed Chocobo: 10/10'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # And then a fuzzy match esper search...
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res choco r', 'FakeyMcFakeFace', '1234', '#5678'))
+        expected_text = '<@1234>: resonance listing for Red Chocobo:\nLittle Leela: 10/10\nLittle Leela (Halloween): Medium Priority: 2/10'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # And an exact-match esper search...
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res "Chocobo"', 'FakeyMcFakeFace', '1234', '#5678'))
+        expected_text = '<@1234>: resonance listing for Chocobo:\nLittle Leela: High Priority: 3/10\nLittle Leela (Halloween): Low Priority: 1/10'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
