@@ -6,21 +6,22 @@ Helpful Links:
 * https://discordpy.readthedocs.io/en/latest/intro.html
 
 Steps to prep your environment to work on or run this bot:
-* sudo apt-get update
-* sudo apt-get install python3-distutils
-* sudo apt-get install python3.7-venv
-* sudo apt-get install libgl1-mesa-glx
-* sudo apt-get install tesseract-ocr
-* curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-* sudo python3.7 get-pip.py
-* python3.7 -m venv bot-env
-* source bot-env/bin/activate
-* pip install --upgrade pip
-* pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib pytesseract numpy imutils opencv-python opencv-contrib-python discord.py
+```
+sudo apt-get update
+sudo apt-get install python3-distutils python3.7-venv libgl1-mesa-glx tesseract-ocr
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+sudo python3.7 get-pip.py
+python3.7 -m venv bot-env
+source bot-env/bin/activate
+pip install --upgrade pip
+pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib pytesseract numpy imutils opencv-python opencv-contrib-python discord.py
+```
 
 After checkout, and whenever you want to run the bot:
-* python3 -m venv bot-env
-* source bot-env/bin/activate
+```
+python3 -m venv bot-env
+source bot-env/bin/activate
+```
 
 Now configure the bot to connect to discord:
 * Visit https://discordpy.readthedocs.io/en/latest/discord.html and follow instructions to create your bot on Discord. Make a note of your token.
@@ -37,8 +38,8 @@ Now we prepare to connect to Google
 * Visit https://developers.google.com/sheets/api/quickstart/python and follow instructions to create an OAuth app.
 * When prompted how to configure, choose "Desktop Application"
 * Download the credentials file and place it in the checkout directory. Rename it to google_credentials.json
-* In your python virtual environemt:
-  * pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+* In your python virtual environment:
+```pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib```
 
 Now we will create the config file ```bot_config.json``` in the same directory as the source code. Here we will set the Google spreadsheet you want the bot to manage, as well as the ID of a sandbox for trying out potentially-problematic commands like adding espers and units. Also add the ID of the administrative spreadsheet where you will bind Discord Snowflake IDs to guild aliases (used as tab names in the Resonance spreadsheet), and where you can set admin rights and the Discord bot token from earlier. Here is a sample ```bot_config.json```:
 ```
@@ -50,7 +51,7 @@ Now we will create the config file ```bot_config.json``` in the same directory a
 }
 ```
 
-You're ready to start now. Start the bot:
+You're ready to start now. Start the bot using the following commands  (or run the convenience script [run_bot.sh](run_bot.sh), which does the same thing):
 ```
 python3 -m venv bot-env
 source bot-env/bin/activate
@@ -82,18 +83,24 @@ or from an image attachment (if uploaded to the channel). To make this work, you
 
 
 ## Running Integration Tests
-The bot now includes rudimentary integration tests. They are still under construction.
+The bot now includes basic integration tests that cover most (but not all) functionality, as a sanity check. Please be aware that the integration tests will make network calls to Google APIs. By default, Google limits traffic from any specific project to 100-requests-per-100-seconds. This isn't 100 *network calls*, but rather 100 *Google Sheets requests*, and the bot often sends multiple requests in a single network call. To reduce the danger of the integration tests causing the running bot to be throttled, the integration tests forcefully pause (with a countdown) after each major milestone in order to give time for the Google APIs to "cool down". This should keep the traffic well under the 100-requests-per-100-seconds limit.
+
 First, set up the configuration file ```integration_test_config.json``` in the same directory as ```bot_config.json```. They look very similar, but the IDs of the Google spreadsheets that you specify here must be 
 different than the IDs you specify in the ```bot_config.json```. This is super important so bears saying a second time: **The integration test spreadsheets MUST NOT BE THE SAME as the regular spreadsheets that you use in bot_config.json!** These sheets will be wiped every time you run the integration tests! You have been warned!
 ```
+{
   "esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
   "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here"
+}
 ```
 
-To run the integration tests, use the following commands the same way you'd run the bot, but with a different script:
+To run the integration tests, use the following commands (or run the convenience script [run_integrations_tests.sh](run_integrations_tests.sh), which does the same thing):
 ```
 python3 -m venv bot-env
 source bot-env/bin/activate
-python3 wotv_bot_integration_test.py
+python3 wotv_bot_integration_test.py <tests_to_run>
 ```
+... where &lt;tests_to_run&gt; should be either:
+* The word "all" (without quotes), to run all integration tests, or...
+* The name of a specific integration test from the integration test suite to be run. (TODO: allow more than one test to run in this way)
