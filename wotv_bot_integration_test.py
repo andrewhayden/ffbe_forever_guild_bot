@@ -5,8 +5,10 @@ import logging
 import types
 
 from admin_utils import AdminUtils
+from esper_resonance_manager import EsperResonanceManager
 from wotv_bot import WotvBot, WotvBotConfig
 from worksheet_utils import WorksheetUtils
+from wotv_bot_common import ExposableException
 
 class WotvBotIntegrationTests:
     """Integration tests for the FFBEForever Guild Bot"""
@@ -184,7 +186,7 @@ class WotvBotIntegrationTests:
         """Assert that the two values are equal or fail with a helpful message"""
         assert actual == expected, 'expected "' + str(expected) + '", got "' + str(actual) + '"'
 
-    async def testWhoAmI(self): # pylint: disable=missing-function-docstring
+    async def testCommand_WhoAmI(self): # pylint: disable=missing-function-docstring
         wotv_bot = WotvBot(self.wotv_bot_config)
         message_text = '!whoami'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text))
@@ -192,7 +194,8 @@ class WotvBotIntegrationTests:
         self.assertEqual(expected_text, response_text)
         assert reaction is None
 
-    async def testAdminAddEsper_AsAdmin(self): # pylint: disable=missing-function-docstring
+    async def testCommand_AdminAddEsper_AsAdmin(self): # pylint: disable=missing-function-docstring
+        self.resetAdmin()
         self.resetEsperResonance()
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Add one esper to a blank sheet
@@ -234,7 +237,8 @@ class WotvBotIntegrationTests:
         self.assertEqual('E', column_string)
         self.assertEqual(WotvBotIntegrationTests.TEST_ESPER1_NAME, cell_value)
 
-    async def testAdminAddUnit_AsAdmin(self): # pylint: disable=missing-function-docstring
+    async def testCommand_AdminAddUnit_AsAdmin(self): # pylint: disable=missing-function-docstring
+        self.resetAdmin()
         self.resetEsperResonance()
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Add one unit to a blank sheet
@@ -276,12 +280,100 @@ class WotvBotIntegrationTests:
         self.assertEqual(6, row_string)
         self.assertEqual(WotvBotIntegrationTests.TEST_UNIT1_NAME, cell_value)
 
+    async def testAdminUtils_AddUser(self):
+        """Tests adding a new user to the Admin spreadsheet."""
+        self.resetAdmin()
+        AdminUtils.addUser(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, 'NewUserNonAdmin', '999', False)
+        assert AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, '999') is False
+        AdminUtils.addUser(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, 'NewUserAdmin', '666', True)
+        assert AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, '666') is True
+
+    async def testResonanceManager_AddUser(self):
+        """Tests adding a new user to the Esper resonance spreadsheet."""
+        self.resetEsperResonance()
+        esper_resonance_manager = EsperResonanceManager(
+            self.wotv_bot_config.esper_resonance_spreadsheet_id,
+            self.wotv_bot_config.sandbox_esper_resonance_spreadsheet_id,
+            self.wotv_bot_config.access_control_spreadsheet_id,
+            self.wotv_bot_config.spreadsheet_app)
+        # Find the single sheet that exists in the fresh resonance spreadsheet and try to set the first cell to 'test_string'
+        spreadsheet = self.wotv_bot_config.spreadsheet_app.get(spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id).execute()
+        home_sheet_id = spreadsheet['sheets'][0]['properties']['sheetId']
+        request = WorksheetUtils.generateRequestToSetCellText(home_sheet_id, 1, 'A', 'test_string')
+        requestBody = {
+            'requests': [request]
+        }
+        self.wotv_bot_config.spreadsheet_app.batchUpdate(spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id, body=requestBody).execute()
+        # Now add the user, expecting that a new sheet is created and that the new sheet has the 'test_string' value in the first cell.
+        esper_resonance_manager.addUser('Foo') # Base case, should get added after Home (last sheet)
+        esper_resonance_manager.addUser('Boo') # Should get added before Foo
+        esper_resonance_manager.addUser('Coo') # Should get added after Boo
+        spreadsheet = self.wotv_bot_config.spreadsheet_app.get(spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id).execute()
+        assert spreadsheet['sheets'][1]['properties']['title'] == 'Boo'
+        assert spreadsheet['sheets'][2]['properties']['title'] == 'Coo'
+        assert spreadsheet['sheets'][3]['properties']['title'] == 'Foo'
+        result = self.wotv_bot_config.spreadsheet_app.values().get(
+            spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id, range='Foo!A1:A1').execute()
+        final_rows = result.get('values', [])
+        self.assertEqual('test_string', final_rows[0][0])
+
+    async def testCommand_AdminAddUser_AsAdmin(self):
+        """Test adding a user via a bot command, which adds the user to both the admin spreadsheet and the esper resonance tracker"""
+        self.resetAdmin()
+        self.resetEsperResonance()
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # First a normal user
+        normal_user_snowflake = '6745675477457'
+        normal_user_nickname = 'NikNom'
+        message_text = '!admin-add-user ' + normal_user_snowflake + '|' + normal_user_nickname + '|normal'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeAdminMessage(message_text))
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_ADMIN_USER_SNOWFLAKE_ID + '>: Added user ' + normal_user_nickname + '!'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        spreadsheet = self.wotv_bot_config.spreadsheet_app.get(spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id).execute()
+        assert spreadsheet['sheets'][1]['properties']['title'] == normal_user_nickname
+        assert not AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, normal_user_snowflake)
+        # Now an admin user
+        admin_user_snowflake = '111111111111'
+        admin_user_nickname = 'OpAdmin' # After NikNom lexicographically
+        message_text = '!admin-add-user ' + admin_user_snowflake + '|' + admin_user_nickname + '|admin'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeAdminMessage(message_text))
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_ADMIN_USER_SNOWFLAKE_ID + '>: Added user ' + admin_user_nickname + '!'
+        self.assertEqual(expected_text, response_text)
+        assert reaction is None
+        spreadsheet = self.wotv_bot_config.spreadsheet_app.get(spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id).execute()
+        assert spreadsheet['sheets'][2]['properties']['title'] == admin_user_nickname
+        assert AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, admin_user_snowflake)
+
+    async def testCommand_AdminAddUser_AsNonAdmin(self):
+        """Test adding a user via a bot command as a non-admin user, which should fail"""
+        self.resetAdmin()
+        self.resetEsperResonance()
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        admin_user_snowflake = '4444444444'
+        admin_user_nickname = 'SneakyPete'
+        message_text = '!admin-add-user ' + admin_user_snowflake + '|' + admin_user_nickname + '|admin'
+        try:
+            await wotv_bot.handleMessage(self.makeMessage(message_text))
+            assert False, "able to add a user as a non-admin user!"
+        except ExposableException:
+            pass
+        spreadsheet = self.wotv_bot_config.spreadsheet_app.get(spreadsheetId=self.wotv_bot_config.esper_resonance_spreadsheet_id).execute()
+        assert len(spreadsheet['sheets']) == 1 # Should not be a second tab in the resonance spreadsheet, user should not have been added.
+        assert not AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, admin_user_snowflake)
+
     async def runAllTests(self):
         """Run all tests in the integration test suite."""
-        self.resetAdmin()
-        await self.testWhoAmI()
-        await self.testAdminAddEsper_AsAdmin()
-        await self.testAdminAddUnit_AsAdmin()
+        # Core tests
+        await self.testAdminUtils_AddUser()
+        await self.testResonanceManager_AddUser()
+
+        # Bot tests using simulated Discord messages. Highest-level integration tests.
+        await self.testCommand_WhoAmI()
+        await self.testCommand_AdminAddEsper_AsAdmin()
+        await self.testCommand_AdminAddUnit_AsAdmin()
+        await self.testCommand_AdminAddUser_AsAdmin()
+        await self.testCommand_AdminAddUser_AsNonAdmin()
         print('Tests passed!')
 
 if __name__ == "__main__":

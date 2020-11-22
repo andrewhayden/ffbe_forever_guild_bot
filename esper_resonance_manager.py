@@ -285,3 +285,22 @@ class EsperResonanceManager:
         # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
         self.spreadsheet_app.batchUpdate(spreadsheetId=self.esper_resonance_spreadsheet_id, body=requestBody).execute()
         return old_value_string, priorityString, pretty_unit_name, pretty_esper_name
+
+    def addUser(self, user_name: str) -> None:
+        """Adds the user with the specified name by creating a new tab that duplicates the first tab in the spreadsheet.
+
+        Raises an exception on failure. Otherwise, you may assume that the new sheet was successfully created.
+        """
+        spreadsheet = self.spreadsheet_app.get(spreadsheetId=self.esper_resonance_spreadsheet_id).execute()
+        home_sheet_id = spreadsheet['sheets'][0]['properties']['sheetId']
+        allRequests = [WorksheetUtils.generateRequestToDuplicateSheetInAlphabeticOrder(
+            spreadsheet,
+            home_sheet_id,
+            user_name,
+            True)] # True to skip the 'Home' tab, the first tab in the spreadsheet, for sorting purposes
+        requestBody = {
+            'requests': [allRequests]
+        }
+        # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
+        self.spreadsheet_app.batchUpdate(spreadsheetId=self.esper_resonance_spreadsheet_id, body=requestBody).execute()
+        return

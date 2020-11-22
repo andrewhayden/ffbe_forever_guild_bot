@@ -1,6 +1,7 @@
 """A module for working with Google Sheets across the bot."""
 import pickle
 import os.path
+import bisect
 
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -476,3 +477,57 @@ class WorksheetUtils:
             }
         }
         return updateCellsRequest
+
+    @staticmethod
+    def generateRequestToDuplicateSheet(source_sheet_id: int, insert_at_index: int, new_sheet_name: str) -> {}:
+        """Generate and return a Google Sheets request that will duplicate the specified sheet (tab) within the same spreadsheet.
+
+        :param source_sheet_id: the ID of the sheet (tab) to be duplicated
+        :param insert_at_index: the zero-based index where insertion should take place, all sheets at or greater than this index will shift right.
+        :param new_sheet_name: the name to assign to the newly created sheet.
+        """
+        request = {
+            'duplicateSheet': {
+                'sourceSheetId': source_sheet_id,
+                'insertSheetIndex': insert_at_index,
+                'newSheetName': new_sheet_name
+            }
+        }
+        return request
+
+    @staticmethod
+    def generateRequestToDuplicateSheetInAlphabeticOrder(spreadsheet, source_sheet_id: int, new_sheet_name: str, skip_first_sheet: bool = False) -> {}:
+        """Like generateRequestToDuplicateSheet, but additionally inserts the sheet at a position that preserves existing alphabetical order.
+
+        :param source_sheet_id: the ID of the sheet (tab) to be duplicated
+        :param new_sheet_name: the name to assign to the newly created sheet.
+        :param skip_first_sheet: if True, ignore the first sheet (assuming it is a template or something similar), i.e. never insert at index 0.
+        """
+        titles = []
+        for sheet in spreadsheet['sheets']:
+            titles.append(sheet['properties']['title'])
+        if skip_first_sheet:
+            titles.pop(0)
+        insert_at = bisect.bisect(titles, new_sheet_name)
+        if skip_first_sheet:
+            insert_at = insert_at + 1
+        return WorksheetUtils.generateRequestToDuplicateSheet(source_sheet_id, insert_at, new_sheet_name)
+
+    @staticmethod
+    def generateRequestToAppendRow(sheet_id: int, string_values: []):
+        """Generate and return a request to append a new row to the specified sheet, consisting of the specified string values.
+
+        The new row is appended after the last cell that contains data.
+        """
+        request = {
+            'appendCells': {
+                'sheetId': sheet_id,
+                'fields': 'userEnteredValue',
+                'rows': [{
+                    'values': []
+                }]
+            }
+        }
+        for string_value in string_values:
+            request['appendCells']['rows'][0]['values'].append({'userEnteredValue': { 'stringValue': str(string_value)}})
+        return request

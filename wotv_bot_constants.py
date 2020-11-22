@@ -64,6 +64,9 @@ class WotvBotConstants:
     !admin-add-unit name|url|[above|below]|row-identifier
     Add a unit having the specified name and informational URL either above or below the specified row (whose style will be copied; use this to copy the UR/MR/SR/R/N style as appropriate for the unit). Pipes are used as delimiters in order to accommodate spaces and special characters in names and URLs. The row should be the literal row number from the spreadsheet, i.e. it is 1-based (not 0-based). Example: !admin-add-unit Rain|XX:wotv-calc.com/unit/rain|above|16
 
+    !admin-add-user snowflake_id|nickname|admin
+    Add a new user to the bot. This will register the user in the administrative spreadsheet and will add a tab for them in the Esper resonance tracker. If the final parameter, 'admin', is the literal string 'admin' (without quotes), then this user shall be an admin. Otherwise (if the parameter has any other value) the user is a normal (non-admin) user. Example: !admin-add-user 123456789|JohnDoe|normal
+
     **Admin Notes**
     Prefix any admin command with "sandbox-" to perform the operations on the configured sandbox instead of the true resource. Once you're certain you have the command correct, just remove the "sandbox-" prefix to write to the true resource (e.g., the esper resonance spreadsheet for the guild).
 
@@ -83,6 +86,10 @@ class WotvBotConstants:
         r'^!admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
     SANDBOX_ADMIN_ADD_UNIT_PATTERN = re.compile(
         r'^!sandbox-admin-add-unit (?P<name>[^\|].+)\|(?P<url>[^\|]+)\|(?P<above_or_below>.+)\|(?P<row1Based>.+)$')
+
+    # (Admin only) Pattern to add a new user.
+    ADMIN_ADD_USER_PATTERN = re.compile(
+        r'^!admin-add-user (?P<snowflake_id>[^\|].+)\|(?P<nickname>[^\|]+)\|(?P<user_type>.+)$')
 
     # List of all ignore patterns, to iterate over.
     ALL_IGNORE_PATTERNS = [

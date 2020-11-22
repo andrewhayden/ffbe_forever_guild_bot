@@ -6,6 +6,7 @@ from re import Match
 
 import discord
 
+from admin_utils import AdminUtils
 from wotv_bot_constants import WotvBotConstants
 from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
@@ -128,6 +129,9 @@ class WotvBot:
 
         if WotvBotConstants.ADMIN_ADD_UNIT_PATTERN.match(message.content) or WotvBotConstants.SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content):
             return self.handleAdminAddUnit(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
+
+        if WotvBotConstants.ADMIN_ADD_USER_PATTERN.match(message.content):
+            return self.handleAdminAddUser(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
 
         if message.content.lower().startswith('!resonance'):
             responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
@@ -254,6 +258,24 @@ class WotvBot:
             context.from_name, context.from_discrim, unit_name, unit_url, above_or_below, row1Based, sandbox))
         context.esper_resonance_manager.addUnitRow(context.from_id, unit_name, unit_url, above_or_below, row1Based, sandbox)
         responseText = '<@{0}>: Added unit {1}!'.format(context.from_id, unit_name)
+        return (responseText, None)
+
+    def handleAdminAddUser(self, context: CommandContextInfo) -> (str, str):
+        """Handle !admin-add-user command to add a new unit to the resonance tracker and the administrative spreadsheet."""
+        if not AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, context.from_id):
+            raise ExposableException('You do not have permission to add a user.')
+        match = WotvBotConstants.ADMIN_ADD_USER_PATTERN.match(context.original_message.content)
+        snowflake_id = match.group('snowflake_id').strip()
+        nickname = match.group('nickname').strip()
+        user_type = match.group('user_type').strip().lower()
+        is_admin = False
+        if user_type == 'admin':
+            is_admin = True
+        print('user add from user {0}#{1}, for snowflake_id {2}, nickname {3}, is_admin {4}'.format(
+            context.from_name, context.from_discrim, snowflake_id, nickname, is_admin))
+        AdminUtils.addUser(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, nickname, snowflake_id, is_admin)
+        context.esper_resonance_manager.addUser(nickname)
+        responseText = '<@{0}>: Added user {1}!'.format(context.from_id, nickname)
         return (responseText, None)
 
     async def handleVisionCardOcr(self, context: CommandContextInfo) -> (str, str):

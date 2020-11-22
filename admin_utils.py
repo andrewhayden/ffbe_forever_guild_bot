@@ -55,3 +55,16 @@ class AdminUtils:
                 return row[1]
         raise ExposableException(
             'User with ID {0} is not configured, or is not allowed to access this data. Ask your guild administrator for assistance.'.format(user_id))
+
+    @staticmethod
+    def addUser(spreadsheet_app, access_control_spreadsheet_id: str, user_name: str, user_id: str, is_admin: bool = False):
+        """Add a user to the admin spreadsheet."""
+        admin_string = ''
+        if is_admin:
+            admin_string = 'Admin'
+        spreadsheet = spreadsheet_app.get(spreadsheetId=access_control_spreadsheet_id).execute()
+        home_sheet_id = spreadsheet['sheets'][0]['properties']['sheetId']
+        requestBody = {
+            'requests': [WorksheetUtils.generateRequestToAppendRow(home_sheet_id, [user_id, user_name, admin_string])]
+        }
+        spreadsheet_app.batchUpdate(spreadsheetId=access_control_spreadsheet_id, body=requestBody).execute()
