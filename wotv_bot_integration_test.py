@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import time
 import types
 
 from admin_utils import AdminUtils
@@ -362,19 +363,43 @@ class WotvBotIntegrationTests:
         assert len(spreadsheet['sheets']) == 1 # Should not be a second tab in the resonance spreadsheet, user should not have been added.
         assert not AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, admin_user_snowflake)
 
+    @staticmethod
+    def cooldown():
+        """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
+        for i in range (30, 1, -1):
+            print('>>> Google API cooldown pause (30s): ' + str(i) + '...', end='\r', flush=True)
+            time.sleep(1)
+
     async def runAllTests(self):
         """Run all tests in the integration test suite."""
         # Core tests
+        print('>>> Test: testAdminUtils_AddUser')
         await self.testAdminUtils_AddUser()
+        WotvBotIntegrationTests.cooldown()
+
+        print('>>> Test: testResonanceManager_AddUser')
         await self.testResonanceManager_AddUser()
+        WotvBotIntegrationTests.cooldown()
 
         # Bot tests using simulated Discord messages. Highest-level integration tests.
-        await self.testCommand_WhoAmI()
+        print('>>> Test: testCommand_WhoAmI')
+        await self.testCommand_WhoAmI() # Doesn't call remote APIs, no cooldown required.
+
+        print('>>> Test: testCommand_AdminAddEsper_AsAdmin')
         await self.testCommand_AdminAddEsper_AsAdmin()
+        WotvBotIntegrationTests.cooldown()
+
+        print('>>> Test: testCommand_AdminAddUnit_AsAdmin')
         await self.testCommand_AdminAddUnit_AsAdmin()
+        WotvBotIntegrationTests.cooldown()
+
+        print('>>> Test: testCommand_AdminAddUser_AsAdmin')
         await self.testCommand_AdminAddUser_AsAdmin()
+        WotvBotIntegrationTests.cooldown()
+
+        print('>>> Test: testCommand_AdminAddUser_AsNonAdmin')
         await self.testCommand_AdminAddUser_AsNonAdmin()
-        print('Tests passed!')
+        print('All integration tests passed!')
 
 if __name__ == "__main__":
     logger = logging.getLogger('discord')
