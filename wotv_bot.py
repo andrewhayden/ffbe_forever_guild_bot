@@ -10,6 +10,7 @@ from admin_utils import AdminUtils
 from wotv_bot_constants import WotvBotConstants
 from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
+from vision_card_manager import VisionCardManager
 from wotv_bot_common import ExposableException
 
 class DiscordSafeException(ExposableException):
@@ -22,15 +23,17 @@ class DiscordSafeException(ExposableException):
 class WotvBotConfig:
     """Configuration for a single instance of the bot. All fields are required to be set.
 
-    :param access_control_spreadsheet_id: the ID of the spreadsheet where access controls are kept
-    :param esper_resonance_spreadsheet_id: the ID of the spreadsheet where esper resonance is tracked
-    :param sandbox_esper_resonance_spreadsheet_id: the ID of the sandbox alternative to the real esper_resonance_spreadsheet_id
-    :param spreadsheet_app: the Google spreadsheets Resource obtained from calling the spreadsheets() method on a Service Resource.
-    :param discord_client: the Discord client
+    access_control_spreadsheet_id: the ID of the spreadsheet where access controls are kept
+    esper_resonance_spreadsheet_id: the ID of the spreadsheet where esper resonance is tracked
+    sandbox_esper_resonance_spreadsheet_id: the ID of the sandbox alternative to the real esper_resonance_spreadsheet_id
+    vision_card_spreadsheet_id: the ID of the spreadsheet where vision cards are tracked
+    spreadsheet_app: the Google spreadsheets Resource obtained from calling the spreadsheets() method on a Service Resource.
+    discord_client: the Discord client
     """
     access_control_spreadsheet_id: str = None
     esper_resonance_spreadsheet_id: str = None
     sandbox_esper_resonance_spreadsheet_id: str = None
+    vision_card_spreadsheet_id: str = None
     spreadsheet_app = None
     discord_client = None
 
@@ -42,6 +45,7 @@ class CommandContextInfo:
     from_discrim: str = None # Convenience
     original_message: str = None # For unusual use cases
     esper_resonance_manager: EsperResonanceManager = None
+    vision_card_manager: VisionCardManager = None
     command_match: Match = None
 
     def shallowCopy(self) -> CommandContextInfo:
@@ -54,8 +58,13 @@ class CommandContextInfo:
         return result
 
     def withEsperResonanceManager(self, esper_resonance_manager: EsperResonanceManager) -> CommandContextInfo:
-        """Assign the specified esper resonance amnager and return a reference to this object."""
+        """Assign the specified esper resonance manager and return a reference to this object."""
         self.esper_resonance_manager = esper_resonance_manager
+        return self
+
+    def withVisionCardManager(self, vision_card_manager: VisionCardManager) -> CommandContextInfo:
+        """Assign the specified vision card manager and return a reference to this object."""
+        self.vision_card_manager = vision_card_manager
         return self
 
     def withMatch(self, the_match: Match) -> CommandContextInfo:
@@ -67,6 +76,10 @@ class WotvBot:
     """An instance of the bot, configured to manage specific spreadsheets and using Discord and Google credentials."""
     def __init__(self, wotv_bot_config: WotvBotConfig):
         self.wotv_bot_config = wotv_bot_config
+        # Set this to true in an integration test to allow a local filesystem path to be used in a Discord
+        # message as the source of the image to be processed by OCR for Vision Card text extraction. For
+        # obvious security reasons, this is false by default.
+        self.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD = False
 
     async def handleMessage(self, message):
         """Process the request and produce a response."""
@@ -92,10 +105,14 @@ class WotvBot:
         context.from_name = from_name
         context.original_message = message
 
-        # TODO: Hold this reference longer after cleaning up the rest of the code, in an application context.
+        # TODO: Hold these references longer after cleaning up the rest of the code, in an application context.
         esper_resonance_manager = EsperResonanceManager(
             self.wotv_bot_config.esper_resonance_spreadsheet_id,
             self.wotv_bot_config.sandbox_esper_resonance_spreadsheet_id,
+            self.wotv_bot_config.access_control_spreadsheet_id,
+            self.wotv_bot_config.spreadsheet_app)
+        vision_card_manager = VisionCardManager(
+            self.wotv_bot_config.vision_card_spreadsheet_id,
             self.wotv_bot_config.access_control_spreadsheet_id,
             self.wotv_bot_config.spreadsheet_app)
 
@@ -115,6 +132,16 @@ class WotvBot:
         if match:
             return self.handleResonanceSet(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
+        if WotvBotConstants.VISION_CARD_SET_PATTERN.match(message.content.lower()):
+            return await self.handleVisionCardSet(context.shallowCopy().withVisionCardManager(vision_card_manager))
+
+        match = WotvBotConstants.VISION_CARD_FETCH_BY_NAME_PATTERN.match(message.content.lower())
+        if match:
+            return await self.handleVisionCardFetchByName(context.shallowCopy().withMatch(match).withVisionCardManager(vision_card_manager))
+
+        if WotvBotConstants.VISION_CARD_DEBUG_PATTERN.match(message.content.lower()):
+            return await self.handleVisionCardDebug(context.shallowCopy().withVisionCardManager(vision_card_manager))
+
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if message.content.lower().startswith('!whoami'):
             return self.handleWhoAmI(context)
@@ -130,16 +157,15 @@ class WotvBot:
         if WotvBotConstants.ADMIN_ADD_UNIT_PATTERN.match(message.content) or WotvBotConstants.SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content):
             return self.handleAdminAddUnit(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
 
+        if WotvBotConstants.ADMIN_ADD_VC_PATTERN.match(message.content):
+            return self.handleAdminAddVisionCard(context.shallowCopy().withVisionCardManager(vision_card_manager))
+
         if WotvBotConstants.ADMIN_ADD_USER_PATTERN.match(message.content):
-            return self.handleAdminAddUser(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
+            return self.handleAdminAddUser(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager).withVisionCardManager(vision_card_manager))
 
         if message.content.lower().startswith('!resonance'):
             responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
             return (responseText, None)
-
-        if (WotvBotConstants.EXPERIMENTAL_VISION_CARD_OCR_PATTERN.match(message.content.lower())
-            or WotvBotConstants.EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN.match(message.content.lower())):
-            return await self.handleVisionCardOcr(context.shallowCopy())
 
         if message.content.lower().startswith('!help'):
             responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id)
@@ -260,6 +286,19 @@ class WotvBot:
         responseText = '<@{0}>: Added unit {1}!'.format(context.from_id, unit_name)
         return (responseText, None)
 
+    def handleAdminAddVisionCard(self, context: CommandContextInfo) -> (str, str):
+        """Handle !admin-add-vc command to add a new vision card."""
+        match = WotvBotConstants.ADMIN_ADD_VC_PATTERN.match(context.original_message.content)
+        card_name = match.group('name').strip()
+        card_url = match.group('url').strip()
+        above_or_below = match.group('above_or_below').strip()
+        row1Based = match.group('row1Based').strip()
+        print('vc add from user {0}#{1}, for card {2}, url {3}, position {4}, row {5}'.format(
+            context.from_name, context.from_discrim, card_name, card_url, above_or_below, row1Based))
+        context.vision_card_manager.addVisionCardRow(context.from_id, card_name, card_url, above_or_below, row1Based)
+        responseText = '<@{0}>: Added card {1}!'.format(context.from_id, card_name)
+        return (responseText, None)
+
     def handleAdminAddUser(self, context: CommandContextInfo) -> (str, str):
         """Handle !admin-add-user command to add a new unit to the resonance tracker and the administrative spreadsheet."""
         if not AdminUtils.isAdmin(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, context.from_id):
@@ -275,18 +314,28 @@ class WotvBot:
             context.from_name, context.from_discrim, snowflake_id, nickname, is_admin))
         AdminUtils.addUser(self.wotv_bot_config.spreadsheet_app, self.wotv_bot_config.access_control_spreadsheet_id, nickname, snowflake_id, is_admin)
         context.esper_resonance_manager.addUser(nickname)
+        context.vision_card_manager.addUser(nickname)
         responseText = '<@{0}>: Added user {1}!'.format(context.from_id, nickname)
         return (responseText, None)
 
-    async def handleVisionCardOcr(self, context: CommandContextInfo) -> (str, str):
+    async def handleVisionCardDebug(self, context: CommandContextInfo) -> (str, str):
         """Handle !xocr and !xocr-debug commands to perform OCR on a Vision Card."""
-        is_debug = False
-        if WotvBotConstants.EXPERIMENTAL_VISION_CARD_OCR_DEBUG_PATTERN.match(context.original_message.content.lower()):
-            is_debug = True
+        if context.original_message.endswith('-debug'):
+            context.original_message = '!vc-set-debug'
+        else:
+            context.original_message = '!vc-set'
+        return self.handleVisionCardSet(context, is_debug=True)
+
+    async def handleVisionCardSet(self, context: CommandContextInfo, is_debug: bool = False) -> (str, str):
+        """Handle !vc-set"""
         # Try to extract text from a vision card screenshot that is sent as an attachment to this message.
         url = context.original_message.attachments[0].url
         print('Vision Card OCR request from user %s#%s, for url %s' % (context.from_name, context.from_discrim, url))
-        screenshot = VisionCardOcrUtils.downloadScreenshotFromUrl(url)
+        screenshot = None
+        if self.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD:
+            screenshot = VisionCardOcrUtils.loadScreenshotFromFilesystem(url)
+        else:
+            screenshot = VisionCardOcrUtils.downloadScreenshotFromUrl(url)
         vision_card = VisionCardOcrUtils.extractVisionCardFromScreenshot(screenshot, is_debug)
         if is_debug:
             combined_image = VisionCardOcrUtils.mergeDebugImages(vision_card)
@@ -297,9 +346,21 @@ class WotvBot:
             await context.original_message.channel.send('Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```'.format(
                 vision_card.info_debug_raw_text,
                 vision_card.stats_debug_raw_text), file=temp_file)
+        reaction = None
         if vision_card.successfully_extracted is True:
             responseText = '<@{0}>: {1}'.format(context.from_id, vision_card.prettyPrint())
+            if not is_debug:
+                context.vision_card_manager.setVisionCard(context.from_id, vision_card)
+            reaction = '\U00002705'  # CLDR: check mark button
         else:
-            responseText = '<@{0}>: Vision card extraction has failed. You may try again with !xocr-debug for a clue about what has gone wrong'.format(
+            responseText = '<@{0}>: Vision card extraction has failed. You may try again with !vc-debug for a clue about what has gone wrong'.format(
                 context.from_id)
+        return (responseText, reaction)
+
+    async def handleVisionCardFetchByName(self, context: CommandContextInfo) -> (str, str):
+        """Handle !vc command for self-lookup of a given vision card by name"""
+        target_name = context.command_match.group('target_name').strip()
+        print('vision card fetch from user %s#%s, for target %s' % (context.from_name, context.from_discrim, target_name))
+        vision_card = context.vision_card_manager.readVisionCardByName(None, context.from_id, target_name)
+        responseText = '<@{0}>: Vision Card:\n{1}'.format(context.from_id, str(vision_card.prettyPrint()))
         return (responseText, None)

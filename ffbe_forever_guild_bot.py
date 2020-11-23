@@ -30,6 +30,7 @@ def readConfig(file_path) -> GlobalConfig:
         data = json.load(config_file)
         wotv_bot_config.access_control_spreadsheet_id = data['access_control_spreadsheet_id']
         wotv_bot_config.esper_resonance_spreadsheet_id = data['esper_resonance_spreadsheet_id']
+        wotv_bot_config.vision_card_spreadsheet_id = data['vision_card_spreadsheet_id']
         wotv_bot_config.sandbox_esper_resonance_spreadsheet_id = data['sandbox_esper_resonance_spreadsheet_id']
         discord_bot_token = data['discord_bot_token']
     return GlobalConfig(wotv_bot_config, discord_bot_token)

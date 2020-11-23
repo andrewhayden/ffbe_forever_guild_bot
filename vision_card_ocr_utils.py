@@ -34,6 +34,11 @@ class VisionCardOcrUtils:
             raise Exception('Error while downloading or converting image: ' + url) # deliberately low on details as this may be surfaced online.
 
     @staticmethod
+    def loadScreenshotFromFilesystem(path: str):
+        """Load a vision card screenshot from the local filesystem and return as an OpenCV image object."""
+        return cv2.imread(path)
+
+    @staticmethod
     def extractRawTextFromVisionCard(vision_card_image, debug_vision_card:VisionCard = None) -> (str, str):
         """Get the raw, unstructured text from a vision card (basically the raw OCR dump string).
 
@@ -468,7 +473,7 @@ class VisionCardOcrUtils:
             vision_card_image = VisionCardOcrUtils.downloadScreenshotFromUrl(path)
         else:
             # Read image from the specified path
-            vision_card_image = cv2.imread(sys.argv[1])
+            vision_card_image = VisionCardOcrUtils.loadScreenshotFromFilesystem(sys.argv[1])
         print(VisionCardOcrUtils.extractVisionCardFromScreenshot(vision_card_image))
 
 if __name__ == "__main__":

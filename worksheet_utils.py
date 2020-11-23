@@ -448,6 +448,33 @@ class WorksheetUtils:
         return updateCellsRequest
 
     @staticmethod
+    def generateRequestToSetRowText(sheetId, row_1_based: int, start_column_A1: str, text_values: []):
+        """Generate and return a Google Sheets request that will set the specified row to the specified text values, starting at the specified
+        column and proceeding further into the row until all values are exhausted.
+
+        :param sheetId: the ID of the sheet (tab) within the spreadsheet to generate the request for
+        :param row_1_based: the 1-based row number of the cell to be updated
+        :param start_column_A1: The A1 notation of the column of the first cell in the row to be updated, i.e. a value of 'A' refers to the first column
+        :param text_values: An array of text values to set, with each value being placed into the next column, starting at start_column_A1
+        """
+        request = {
+            'updateCells': {
+                'rows': [{
+                    'values': []
+                }],
+                'fields': 'userEnteredValue',
+                'start': {
+                    'sheetId': sheetId,
+                    'rowIndex': row_1_based - 1, # inclusive
+                    'columnIndex': WorksheetUtils.fromA1(start_column_A1) - 1 # inclusive
+                }
+            }
+        }
+        for text_value in text_values:
+            request['updateCells']['rows'][0]['values'].append({'userEnteredValue': {'stringValue' : text_value}})
+        return request
+
+    @staticmethod
     def generateRequestToSetCellComment(sheetId, row_1_based: int, column_A1: str, text: str):
         """Generate and return a Google Sheets request that will set the specified cell's comment to the specified text value (or clear it).
 

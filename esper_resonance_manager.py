@@ -74,7 +74,6 @@ class EsperResonanceManager:
         else:
             target_spreadsheet_id = self.esper_resonance_spreadsheet_id
         spreadsheet = self.spreadsheet_app.get(spreadsheetId=target_spreadsheet_id).execute()
-        int(row_1_based)
 
         allRequests = WorksheetUtils.generateRequestsToAddRowToAllSheets(
             spreadsheet, int(row_1_based), above_or_below,
