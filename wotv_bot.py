@@ -324,11 +324,7 @@ class WotvBot:
 
     async def handleVisionCardDebug(self, context: CommandContextInfo) -> (str, str):
         """Handle !xocr and !xocr-debug commands to perform OCR on a Vision Card."""
-        if context.original_message.endswith('-debug'):
-            context.original_message = '!vc-set-debug'
-        else:
-            context.original_message = '!vc-set'
-        return self.handleVisionCardSet(context, is_debug=True)
+        return await self.handleVisionCardSet(context, is_debug=True)
 
     async def handleVisionCardSet(self, context: CommandContextInfo, is_debug: bool = False) -> (str, str):
         """Handle !vc-set"""
@@ -350,6 +346,10 @@ class WotvBot:
             await context.original_message.channel.send('Intermediate OCR Debug. Raw info text:\n```{0}```\nRaw stats text: ```{1}```'.format(
                 vision_card.info_debug_raw_text,
                 vision_card.stats_debug_raw_text), file=temp_file)
+            # Print errors to the console, but do not return them as we cannot guarantee that there is no sensitive
+            # information in here, such as possible library exceptions, i/o exceptions, etceteras.
+            if vision_card.error_messages is not None and len(vision_card.error_messages) > 0:
+                print('errors found during vision card conversion: ' + str(vision_card.error_messages))
         reaction = None
         if vision_card.successfully_extracted is True:
             responseText = '<@{0}>: {1}'.format(context.from_id, vision_card.prettyPrint())
