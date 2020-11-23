@@ -261,6 +261,16 @@ class VisionCardOcrUtils:
             return None
 
     @staticmethod
+    def coerceMalformedCardName(raw_string: str) -> str:
+        """Given a card name that may be very close to a real card name, tries to coerce
+        optically-close-matches to a valid card name and returns it.
+
+        For example, if the given string contains a right single quotation mark	(0x2019 / &rsquo;),
+        this method will normalize it to a standard apostrophe (0x27 / &apos;).
+        """
+        return raw_string.replace('\u2019', "'")
+
+    @staticmethod
     def coerceMalformedStatNames(raw_uppercase_strings: [str]) -> [str]:
         """Given an array of things that are possibly stat names, all uppercase, tries to coerce
         optically-close-matches to a valid stat name.
@@ -444,7 +454,7 @@ class VisionCardOcrUtils:
         # TODO: Remove these when the code is more bullet-proof
         print('raw info text from card:' + raw_info_text)
         print('raw stats text from card:' + raw_stats_text)
-        result.Name = raw_info_text.splitlines(keepends=False)[0].strip()
+        result.Name = VisionCardOcrUtils.coerceMalformedCardName(raw_info_text.splitlines(keepends=False)[0].strip())
         # This regex is used to ignore trash from OCR that might appear at the boundaries of the party/bestowed ability boxes.
         safe_effects_regex = re.compile(r'^[a-zA-Z0-9 \+\-\%\&]+$')
 
