@@ -261,6 +261,22 @@ class VisionCardOcrUtils:
             return None
 
     @staticmethod
+    def coerceMalformedStatNames(raw_uppercase_strings: [str]) -> [str]:
+        """Given an array of things that are possibly stat names, all uppercase, tries to coerce
+        optically-close-matches to a valid stat name.
+
+        Returns an array of the same size, with any close-matches coerced to their canonical form.
+        For example, if given the string 'AGL' this method will coerce it to "AGI"
+        """
+        result = []
+        for raw_uppercase_string in raw_uppercase_strings:
+            if raw_uppercase_string == 'AGL':
+                result.append('AGI')
+            else:
+                result.append(raw_uppercase_string)
+        return result
+
+    @staticmethod
     def fuzzyStatExtract(raw_line) -> []:
         """ Try to permissively parse a line of stats that might include garbage.
 
@@ -286,7 +302,7 @@ class VisionCardOcrUtils:
                 baked += ' '
 
         # Strip whitespace from the sides, upper-case, and then split on whitespace.
-        substrings = baked.upper().strip().split()
+        substrings = VisionCardOcrUtils.coerceMalformedStatNames(baked.upper().strip().split())
         num_substrings = len(substrings)
 
         # There are only a few possibilities, and they depend on the length of the substrings array
