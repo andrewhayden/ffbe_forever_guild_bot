@@ -21,6 +21,9 @@ class VisionCardOcrUtils:
     # garbage from OCR gone awry.
     MIN_BESTOWED_ABILITY_STRING_LENGTH_SANITY = 4
 
+    # If true, hints the OCR to be better at finding lines by tiling the "Cost" section of the stats panel horizontally.
+    __USE_LATCHON_HACK = True
+
     @staticmethod
     def downloadScreenshotFromUrl(url):
         """Download a vision card screenshot from the specified URL and return as an OpenCV image object."""
@@ -163,6 +166,29 @@ class VisionCardOcrUtils:
         # Now convert back to a regular Python image from CV2.
         stats_converted_final_ocr_input_image = Image.fromarray(stats_final_ocr_input_image)
         info_converted_final_ocr_input_image = Image.fromarray(info_final_ocr_input_image)
+
+        # The Latch-On Hack
+        # Now a strange tweak. Many vision cards, particularly of the more common rarities, have few stats. This results in lots
+        # of empty space in the stats table and can cause the OCR to be unable to "latch on" to the fact that we want it to find
+        # distinct lines of text. To fix this, we can add some text to the image - but what to add, and where, and how to match
+        # the font and DPI? The "Cost ##" chunk of text near the top of the stats section holds the key. After the inRange()
+        # operations above, the level bar will have been removed, leaving the area to the right of the "cost" section totally
+        # empty. The cost section itself consists of the word "Cost", and then a number, and conveniently it takes up just a bit
+        # less than the left 1/3 of the stats area. It occupies about the top 15.5% of the image as well. Using this knowledge,
+        # we can grab a rectangle starting at (0,0) and extending to x=33.3%, y=15.5% of the image height and then copy and
+        # paste it twice, each time moving 1/3 of the image to the right. The result is that we'll have three sets of "Cost ##"
+        # in the top row, but this will magically have the same font and color as the currently-masked text, and the OCR will
+        # "latch on" much better with that junk row in place.
+        if VisionCardOcrUtils.__USE_LATCHON_HACK is True:
+            latchon_hack_height_ratio = .155
+            latchon_hack_width_ratio = .3333
+            stats_area_height, stats_area_width = stats_text_mask.shape[:2]
+            latchon_hack_height = int(stats_area_height * latchon_hack_height_ratio)
+            latchon_hack_width = int(stats_area_width * latchon_hack_width_ratio)
+            latchon_hack_region = stats_converted_final_ocr_input_image.crop((0, 0, latchon_hack_width, latchon_hack_height)) # left, upper, right, lower)
+            stats_converted_final_ocr_input_image.paste(latchon_hack_region, (latchon_hack_width, 0))
+            stats_converted_final_ocr_input_image.paste(latchon_hack_region, (latchon_hack_width * 2, 0))
+
         if debug_vision_card is not None:
             debug_vision_card.stats_debug_image_step6_converted_final_ocr_input_image = stats_converted_final_ocr_input_image
             debug_vision_card.info_debug_image_step6_converted_final_ocr_input_image = info_converted_final_ocr_input_image
@@ -274,6 +300,18 @@ class VisionCardOcrUtils:
             print('baked line: ' + baked)
             print('num substrings: ' + str(num_substrings))
 
+        # Length 6: Special case: The Latch-On Hack
+        # As described in extractRawTextFromVisionCard(...) later, there is a special hack made to
+        # "hint" the OCR library to treat the text in the card as full lines of text. To do this the
+        # "Cost ##" section of the stats image is tiled horizontally, creating a 6-tuple of
+        # ('Cost', <value>, 'Cost', <value>, 'Cost', <value>) across an entire line.
+        # Detect this case and restore sanity.
+        if num_substrings == 6 and substrings[0] == 'COST' and substrings[2] == 'COST' and substrings[4] == 'COST':
+            substrings = [substrings[0], substrings[1]]
+            num_substrings = 2
+            print('special case: latch-on hack line')
+            # And then fall through to regular processing code.
+
         # Length 1: Just a name, with no number (implies value is nothing)
         if num_substrings == 1:
             return [(substrings[0], None)] # example: "Cost -"
@@ -337,6 +375,8 @@ class VisionCardOcrUtils:
                 return [(substrings[0], None), (substrings[2], None)]
 
         # Anything else (5 groups in the split, anything that fell past 4.5 above, etc) cannot be handled. Give up.
+        print('Problematic line: ' + raw_line)
+        print('Substrings: ' + str(substrings))
         raise Exception('Malformed input')
 
     @staticmethod
@@ -474,7 +514,10 @@ class VisionCardOcrUtils:
         else:
             # Read image from the specified path
             vision_card_image = VisionCardOcrUtils.loadScreenshotFromFilesystem(sys.argv[1])
-        print(VisionCardOcrUtils.extractVisionCardFromScreenshot(vision_card_image))
+        vision_card = VisionCardOcrUtils.extractVisionCardFromScreenshot(vision_card_image, True)
+        debug_image = VisionCardOcrUtils.mergeDebugImages(vision_card)
+        debug_image.save('debug.png')
+        print(vision_card)
 
 if __name__ == "__main__":
     VisionCardOcrUtils.invokeStandalone(sys.argv[1])

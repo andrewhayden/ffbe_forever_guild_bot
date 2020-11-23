@@ -222,6 +222,7 @@ class WotvBotIntegrationTests:
     async def testCommand_AdminAddEsper_AsAdmin(self): # pylint: disable=missing-function-docstring
         self.resetAdmin()
         self.resetEsperResonance()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Add one esper to a blank sheet
         message_text = '!admin-add-esper ' + self.TEST_ESPER1_NAME + '|' + self.TEST_ESPER1_URL + '|right-of|C'
@@ -265,6 +266,7 @@ class WotvBotIntegrationTests:
     async def testCommand_AdminAddUnit_AsAdmin(self): # pylint: disable=missing-function-docstring
         self.resetAdmin()
         self.resetEsperResonance()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Add one unit to a blank sheet
         message_text = '!admin-add-unit ' + self.TEST_UNIT1_NAME + '|' + self.TEST_UNIT1_URL + '|below|4'
@@ -308,6 +310,7 @@ class WotvBotIntegrationTests:
     async def testAdminUtils_AddUser(self):
         """Tests adding a new user to the Admin spreadsheet."""
         self.resetAdmin()
+        self.cooldown(15)
         AdminUtils.addUser(
             self.wotv_bot_config.spreadsheet_app,
             self.wotv_bot_config.access_control_spreadsheet_id,
@@ -330,6 +333,7 @@ class WotvBotIntegrationTests:
     async def testResonanceManager_AddUser(self):
         """Tests adding a new user to the Esper resonance spreadsheet."""
         self.resetEsperResonance()
+        self.cooldown(15)
         esper_resonance_manager = EsperResonanceManager(
             self.wotv_bot_config.esper_resonance_spreadsheet_id,
             self.wotv_bot_config.sandbox_esper_resonance_spreadsheet_id,
@@ -359,6 +363,7 @@ class WotvBotIntegrationTests:
     async def testCommand_AdminAddUser_AsAdmin(self):
         """Test adding a user via a bot command, which adds the user to both the admin spreadsheet and the esper resonance tracker"""
         self.resetAllSheets()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         # First a normal user
         message_text = '!admin-add-user ' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '|' + WotvBotIntegrationTests.TEST_USER_DISPLAY_NAME + '|normal'
@@ -392,6 +397,7 @@ class WotvBotIntegrationTests:
         """Test adding a user via a bot command as a non-admin user, which should fail"""
         self.resetAdmin()
         self.resetEsperResonance()
+        self.cooldown(15)
         AdminUtils.addUser(
             self.wotv_bot_config.spreadsheet_app,
             self.wotv_bot_config.access_control_spreadsheet_id,
@@ -419,6 +425,7 @@ class WotvBotIntegrationTests:
         """Test various combinations of setting esper resonance."""
         self.resetAllSheets()
         await self.addNormalUserToAll()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         # First set up a unit and esper to set the resonance on.
         await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-unit ' + self.TEST_UNIT1_NAME + '|' + self.TEST_UNIT1_URL + '|below|2'))
@@ -459,6 +466,7 @@ class WotvBotIntegrationTests:
         """Test various combinations of getting esper resonance."""
         self.resetAllSheets()
         await self.addNormalUserToAll()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         # First set up a unit and esper to set the resonance on.
         await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-unit Little Leela|' + self.TEST_UNIT1_URL + '|below|2'))
@@ -479,18 +487,21 @@ class WotvBotIntegrationTests:
         expected_text += '\nChocobo: Low Priority: 1/10\nRed Chocobo: Medium Priority: 2/10'
         self.assertEqual(expected_text, response_text)
         assert reaction is None
+        self.cooldown(15)
         # And an exact-match unit search...
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res "Little Leela"'))
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: resonance listing for Little Leela:'
         expected_text += '\nChocobo: High Priority: 3/10\nRed Chocobo: 10/10'
         self.assertEqual(expected_text, response_text)
         assert reaction is None
+        self.cooldown(15)
         # And then a fuzzy match esper search...
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res choco r'))
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: resonance listing for Red Chocobo:'
         expected_text += '\nLittle Leela: 10/10\nLittle Leela (Halloween): Medium Priority: 2/10'
         self.assertEqual(expected_text, response_text)
         assert reaction is None
+        self.cooldown(15)
         # And an exact-match esper search...
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage('!res "Chocobo"'))
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: resonance listing for Chocobo:'
@@ -522,6 +533,7 @@ class WotvBotIntegrationTests:
         """Test setting a vision card."""
         self.resetAllSheets()
         await self.addNormalUserToAll()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         wotv_bot.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD = True
         # Set up a vision card and OCR it
@@ -562,6 +574,7 @@ class WotvBotIntegrationTests:
         """Test reading a previously-written vision card"""
         self.resetAllSheets()
         await self.addNormalUserToAll()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         wotv_bot.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD = True
         # Set up a vision card and OCR it
@@ -595,12 +608,14 @@ class WotvBotIntegrationTests:
         """Test reading a previously-written vision card via ability search"""
         self.resetAllSheets()
         await self.addNormalUserToAll()
+        self.cooldown(15)
         wotv_bot = WotvBot(self.wotv_bot_config)
         wotv_bot.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD = True
         # Set up a vision card and OCR it
         await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-vc Beguiling Witch|http://www.example.com|below|2'))
         message = self.makeMessage(message_text='!vc-set', attachment_url='integ_test_res/vision_card_test_image_01.png') # Beguiling Witch
         await wotv_bot.handleMessage(message)
+        self.cooldown(15)
         await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-vc Secret Orders|http://www.example.com|below|3'))
         message = self.makeMessage(message_text='!vc-set', attachment_url='integ_test_res/vision_card_test_image_02.png') # Secret Orders
         await wotv_bot.handleMessage(message)
@@ -614,6 +629,7 @@ class WotvBotIntegrationTests:
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability reap kill'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+        self.cooldown(15)
         # Match against Secret Orders only
         expected_text = ''
         expected_text += '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Vision Cards:\n'
@@ -624,6 +640,7 @@ class WotvBotIntegrationTests:
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability Slash'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+        self.cooldown(15)
         # Match against both cards...
         expected_text = ''
         expected_text += '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Vision Cards:\n'
@@ -638,6 +655,7 @@ class WotvBotIntegrationTests:
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability down'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+        self.cooldown(15)
         # Match nothing.
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: No vision cards matched the ability search.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability Qwyjibo'))
@@ -684,15 +702,19 @@ class WotvBotIntegrationTests:
 
         print('>>> Test: testCommand_AdminAddUser_AsNonAdmin')
         await self.testCommand_AdminAddUser_AsNonAdmin()
+        WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_ResSet')
         await self.testCommand_ResSet()
+        WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_Res')
         await self.testCommand_Res()
+        WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_VcSet')
         await self.testCommand_VcSet()
+        WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_VcAbility')
         await self.testCommand_VcAbility()
