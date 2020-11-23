@@ -591,6 +591,59 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
+    async def testCommand_VcAbility(self):
+        """Test reading a previously-written vision card via ability search"""
+        self.resetAllSheets()
+        await self.addNormalUserToAll()
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        wotv_bot.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD = True
+        # Set up a vision card and OCR it
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-vc Beguiling Witch|http://www.example.com|below|2'))
+        message = self.makeMessage(message_text='!vc-set', attachment_url='integ_test_res/vision_card_test_image_01.png') # Beguiling Witch
+        await wotv_bot.handleMessage(message)
+        await wotv_bot.handleMessage(self.makeAdminMessage('!admin-add-vc Secret Orders|http://www.example.com|below|3'))
+        message = self.makeMessage(message_text='!vc-set', attachment_url='integ_test_res/vision_card_test_image_02.png') # Secret Orders
+        await wotv_bot.handleMessage(message)
+        # Match against Beguiling Witch only
+        expected_text = ''
+        expected_text += '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Vision Cards:\n'
+        expected_text += '  Beguiling Witch\n'
+        expected_text += '    Party Ability: Casting Time Reduced 30\n'
+        expected_text += '    Bestowed Effect: Reaper Killer Up 25\n'
+        expected_text += '    Bestowed Effect: DEF Down 5\n'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability reap kill'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Match against Secret Orders only
+        expected_text = ''
+        expected_text += '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Vision Cards:\n'
+        expected_text += '  Secret Orders\n'
+        expected_text += '    Party Ability: Slash Attack Up 20\n'
+        expected_text += '    Bestowed Effect: AGI Up 10%\n'
+        expected_text += '    Bestowed Effect: SPR Down 5\n'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability Slash'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Match against both cards...
+        expected_text = ''
+        expected_text += '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Vision Cards:\n'
+        expected_text += '  Beguiling Witch\n'
+        expected_text += '    Party Ability: Casting Time Reduced 30\n'
+        expected_text += '    Bestowed Effect: Reaper Killer Up 25\n'
+        expected_text += '    Bestowed Effect: DEF Down 5\n'
+        expected_text += '  Secret Orders\n'
+        expected_text += '    Party Ability: Slash Attack Up 20\n'
+        expected_text += '    Bestowed Effect: AGI Up 10%\n'
+        expected_text += '    Bestowed Effect: SPR Down 5\n'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability down'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Match nothing.
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: No vision cards matched the ability search.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!vc-ability Qwyjibo'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
@@ -640,6 +693,9 @@ class WotvBotIntegrationTests:
 
         print('>>> Test: testCommand_VcSet')
         await self.testCommand_VcSet()
+
+        print('>>> Test: testCommand_VcAbility')
+        await self.testCommand_VcAbility()
 
 if __name__ == "__main__":
     logger = logging.getLogger('discord')

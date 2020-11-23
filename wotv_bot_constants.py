@@ -24,6 +24,9 @@ class WotvBotConstants:
     `!vc vision-card-name`
     > Get **your own** stats for the named vision card. Example: *!vc Odin*
 
+    `!vc-ability ability-text`
+    > Find vision cards that **you own** that have abilities matching the specified text. See rules on matching below, matching against "ability-text" is done in the same was as it is for esper names, etc.
+
     **Names of Espers, Units, Vision Cards, etceteras**
     You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, here's how searching works:
     1. If you enclose the name of the unit, esper, vision card (etc) in double quotes, only an EXACT MATCH will be performed. This is handy to force the correct unit when dealing with some unique situations like "Little Leela" and "Little Leela (Halloween)"
@@ -34,6 +37,7 @@ class WotvBotConstants:
     You can also abbreviate "resonance" as just "res" in all the resonance commands.
 
     View your guild's Esper resonance data here: <https://docs.google.com/spreadsheets/d/{0}>
+    View your guild's Vision Card data here: <https://docs.google.com/spreadsheets/d/{1}>
     '''
 
     # Pattern for getting your own resonance value
@@ -58,6 +62,9 @@ class WotvBotConstants:
 
     # Pattern to retieve one of your own vision card's stats.
     VISION_CARD_FETCH_BY_NAME_PATTERN = re.compile(r'^!vc (?P<target_name>.+)$')
+
+    # Pattern to retieve one of your own vision card's stats.
+    VISION_CARD_ABILITY_SEARCH = re.compile(r'^!vc-ability (?P<search_text>.+)$')
 
     # (Hidden) Pattern for getting your own user ID out of Discord
     WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')

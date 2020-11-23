@@ -139,6 +139,10 @@ class WotvBot:
         if match:
             return await self.handleVisionCardFetchByName(context.shallowCopy().withMatch(match).withVisionCardManager(vision_card_manager))
 
+        match = WotvBotConstants.VISION_CARD_ABILITY_SEARCH.match(message.content.lower())
+        if match:
+            return await self.handleVisionCardAbilitySearch(context.shallowCopy().withMatch(match).withVisionCardManager(vision_card_manager))
+
         if WotvBotConstants.VISION_CARD_DEBUG_PATTERN.match(message.content.lower()):
             return await self.handleVisionCardDebug(context.shallowCopy().withVisionCardManager(vision_card_manager))
 
@@ -363,4 +367,20 @@ class WotvBot:
         print('vision card fetch from user %s#%s, for target %s' % (context.from_name, context.from_discrim, target_name))
         vision_card = context.vision_card_manager.readVisionCardByName(None, context.from_id, target_name)
         responseText = '<@{0}>: Vision Card:\n{1}'.format(context.from_id, str(vision_card.prettyPrint()))
+        return (responseText, None)
+
+    async def handleVisionCardAbilitySearch(self, context: CommandContextInfo) -> (str, str):
+        """Handle !vc-ability command for self-lookup of a given vision card by party/bestowed ability fuzzy-match"""
+        search_text = context.command_match.group('search_text').strip()
+        print('vision card ability search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
+        vision_cards = context.vision_card_manager.searchVisionCardsByAbility(None, context.from_id, search_text)
+        if len(vision_cards) == 0:
+            responseText = '<@{0}>: No vision cards matched the ability search.'.format(context.from_id)
+            return (responseText, None)
+        responseText = '<@{0}>: Matching Vision Cards:\n'.format(context.from_id)
+        for vision_card in vision_cards:
+            responseText += '  ' + vision_card.Name + '\n'
+            responseText += '    Party Ability: ' + vision_card.PartyAbility + '\n'
+            for bestowed_effect in vision_card.BestowedEffects:
+                responseText += '    Bestowed Effect: ' + bestowed_effect + '\n'
         return (responseText, None)

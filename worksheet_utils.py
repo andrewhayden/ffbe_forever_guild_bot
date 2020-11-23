@@ -110,7 +110,7 @@ class WorksheetUtils:
     def safeWorksheetName(sheet_name):
         """Ensures that the name of a worksheet is safe to use."""
         if "'" in sheet_name:
-            raise Exception('Names must not contain apostrophes.')
+            raise Exception('Names must not contain apostrophes: ' + sheet_name)
         return "'" + sheet_name + "'"
 
     @staticmethod
@@ -178,6 +178,60 @@ class WorksheetUtils:
             'Multiple matches for ```{0}``` Please make your text more specific and try again. '\
             'For an exact match, enclose your text in double quotes. '\
             'Possible matches (max 5) are {1}'.format(search_text, all_matches_string))
+
+    @staticmethod
+    def fuzzyFindAllRows(spreadsheet_app, document_id: str, sheet_name: str,
+        search_text: str, columnA1: str, start_at_row_1_based_inclusive: int=0) -> [(int, str)]:
+        """Return a list of tuples of row number (integer value, 1-based) and content of the cell at the specified column for
+        every row that matches the specified search_text.
+
+        Parameters:
+        spreadsheet_app: The application object for accessing Google Sheets
+        document_id: The ID of the spreadsheet in which to perform the search
+        sheet_name: The name of the sheet in which to perform the search
+        search_text: The text to find (see rules below)
+        columnA1: The column in which to search (in A1 notation)
+        start_at_row_1_based_inclusive: the first (1-based) row to search, within columnA1; allows skipping header rows, etc.
+
+        Search works as follows:
+        1. If the search_text starts with and ends with double quotes, only an case-insensitive exact matches and is returned.
+        2. Else, if there is exactly one cell whose case-insensitive content starts with the specified search_text, it is returned.
+        3. Else, if there is at least one cell whose case-insensitive content contains all of the words in the specified search_text, they are returned.
+        4. Else, an empty list is returned
+        """
+        range_name = WorksheetUtils.safeWorksheetName(sheet_name) + '!' + columnA1 + str(start_at_row_1_based_inclusive) + ':' + columnA1
+        search_rows = None
+        normalized_search_text = search_text.strip().lower()
+        try:
+            values = spreadsheet_app.values().get(spreadsheetId=document_id, range=range_name).execute()
+            search_rows = values.get('values', [])
+            if not search_rows:
+                raise Exception('')
+        except:
+            # pylint: disable=raise-missing-from
+            raise NoResultsException(
+                'No such sheet : {0}'.format(sheet_name))  # deliberately low on details as this may be public.
+
+        fuzzy_matches = []
+        prefix_matches = []
+        row_count = 0
+        exact_match_string = None
+        if search_text.startswith('"') and search_text.endswith('"'):
+            exact_match_string = (search_text[1:-1])
+        for search_row in search_rows:
+            row_count += 1
+            for candidate_text in search_row: # There's really just one but it's easiest to write it this way
+                if exact_match_string and (candidate_text.lower() == exact_match_string.lower()):
+                    return [(row_count, candidate_text)]
+                if WorksheetUtils.normalizeName(candidate_text).startswith(normalized_search_text):
+                    prefix_matches.append((row_count, candidate_text))
+                if WorksheetUtils.fuzzyMatches(candidate_text, search_text):
+                    fuzzy_matches.append((row_count, candidate_text))
+        if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
+            return []
+        if len(prefix_matches) == 1: # Prefer prefix match.
+            return [prefix_matches[0]]
+        return fuzzy_matches
 
     @staticmethod
     def fuzzyFindColumn(spreadsheet_app, document_id, sheet_name, search_text, rowNumber):

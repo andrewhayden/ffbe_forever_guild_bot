@@ -46,6 +46,7 @@ Now we will create the config file ```bot_config.json``` in the same directory a
 {
   "esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
   "sandbox_esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
+  "vision_card_spreadsheet_id": "your_vision_card_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_google_spreadsheet_id_here",
   "discord_bot_token": "your_discord_bot_token_here"
 }
@@ -91,6 +92,7 @@ different than the IDs you specify in the ```bot_config.json```. This is super i
 {
   "esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
   "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
+  "vision_card_spreadsheet_id": "your_vision_card_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here"
 }
 ```
