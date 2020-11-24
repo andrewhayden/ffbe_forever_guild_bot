@@ -211,6 +211,13 @@ class WotvBotIntegrationTests:
         """Assert that the two values are equal or fail with a helpful message"""
         assert actual == expected, 'expected "' + str(expected) + '", got "' + str(actual) + '"'
 
+    async def testCommand_Help(self): # pylint: disable=missing-function-docstring
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        message_text = '!help'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text))
+        assert response_text is not None
+        assert reaction is None
+
     async def testCommand_WhoAmI(self): # pylint: disable=missing-function-docstring
         wotv_bot = WotvBot(self.wotv_bot_config)
         message_text = '!whoami'
@@ -673,6 +680,9 @@ class WotvBotIntegrationTests:
     async def runAllTests(self):
         """Run all tests in the integration test suite."""
         # Core tests
+        print('>>> Test: testCommand_Help')
+        await self.testCommand_Help()
+
         print('>>> Test: testVisionCardOcrUtils_ExtractVisionCardFromScreenshot')
         await self.testVisionCardOcrUtils_ExtractVisionCardFromScreenshot()
 
