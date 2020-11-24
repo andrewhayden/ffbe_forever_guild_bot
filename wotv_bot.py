@@ -172,7 +172,7 @@ class WotvBot:
             return (responseText, None)
 
         if message.content.lower().startswith('!help'):
-            responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id)
+            responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id, self.wotv_bot_config.vision_card_spreadsheet_id)
             return (responseText, None)
 
         if message.content.lower().startswith('!admin-help'):
