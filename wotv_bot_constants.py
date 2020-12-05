@@ -76,7 +76,7 @@ class WotvBotConstants:
     FIND_SKILLS_BY_NAME_PATTERN = re.compile(r'^!skills-by-name (?P<search_text>.+)$')
 
     # Pattern to retieve a list of skills by description
-    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription) (?P<search_text>.+)$')
+    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription)? (?P<search_text>.+)$')
 
     # (Hidden) Pattern for getting your own user ID out of Discord
     WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')

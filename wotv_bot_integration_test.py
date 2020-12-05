@@ -805,7 +805,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for master ability
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description "DEF +15, Jump +1"'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc "DEF +15, Jump +1"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for nonexistent skill
@@ -814,7 +814,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test fuzzy match for nonexistent skill
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description qwyjibo'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc qwyjibo'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
