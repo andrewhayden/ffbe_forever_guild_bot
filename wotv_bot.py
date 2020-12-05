@@ -416,8 +416,14 @@ class WotvBot:
             return (responseText, None)
         responseText = '<@{0}>: Matching Skills:\n'.format(context.from_id)
         results = sorted(results, key=lambda one_result : one_result.unit.name)
+        truncated = False
+        if len(results) > 25:
+            results = results[:25]
+            truncated = True
         for result in results:
             responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
+        if truncated:
+            responseText += 'Results truncated because there were too many.'
         return (responseText.strip(), None)
 
     async def handleFindSkillsByDescription(self, context: CommandContextInfo) -> (str, str):
@@ -430,6 +436,12 @@ class WotvBot:
             return (responseText, None)
         responseText = '<@{0}>: Matching Skills:\n'.format(context.from_id)
         results = sorted(results, key=lambda one_result : one_result.unit.name)
+        truncated = False
+        if len(results) > 25:
+            results = results[:25]
+            truncated = True
         for result in results:
             responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
+        if truncated:
+            responseText += 'Results truncated because there were too many.'
         return (responseText.strip(), None)
