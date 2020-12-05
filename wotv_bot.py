@@ -414,6 +414,7 @@ class WotvBot:
             responseText = '<@{0}>: No skills matched the search.'.format(context.from_id)
             return (responseText, None)
         responseText = '<@{0}>: Matching Skills:\n'.format(context.from_id)
+        results = sorted(results, key=lambda one_result : one_result.unit.name)
         for result in results:
             responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
         return (responseText.strip(), None)
@@ -427,6 +428,7 @@ class WotvBot:
             responseText = '<@{0}>: No skills matched the search.'.format(context.from_id)
             return (responseText, None)
         responseText = '<@{0}>: Matching Skills:\n'.format(context.from_id)
+        results = sorted(results, key=lambda one_result : one_result.unit.name)
         for result in results:
             responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
         return (responseText.strip(), None)
