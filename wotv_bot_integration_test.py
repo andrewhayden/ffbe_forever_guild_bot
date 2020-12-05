@@ -756,7 +756,7 @@ class WotvBotIntegrationTests:
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Test fuzzy match for Killer Blade
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
-        expected_text += 'Skill "Killer Blade" learned by Mont Leonis with job Lord at job level 7'
+        expected_text += 'Skill "Killer Blade" learned by Mont Leonis with job Lord at job level 7: Deals Dmg (L) to target & bestows Man Eater.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Blade'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
@@ -789,7 +789,7 @@ class WotvBotIntegrationTests:
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Test fuzzy match for Killer Blade
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
-        expected_text += 'Skill "Killer Blade" learned by Mont Leonis with job Lord at job level 7'
+        expected_text += 'Skill "Killer Blade" learned by Mont Leonis with job Lord at job level 7: Deals Dmg (L) to target & bestows Man Eater.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description eater'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None

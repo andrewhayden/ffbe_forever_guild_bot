@@ -403,6 +403,7 @@ class WotvBot:
             return 'Master ability for ' + result.unit.name + ': ' + result.skill.description
         text = 'Skill "' + result.skill.name + '" learned by ' + result.unit.name
         text += ' with job ' + result.board_skill.unlocked_by_job.name + ' at job level ' + str(result.board_skill.unlocked_by_job_level)
+        text += ': ' + result.skill.description
         return text
 
     async def handleFindSkillsByName(self, context: CommandContextInfo) -> (str, str):
