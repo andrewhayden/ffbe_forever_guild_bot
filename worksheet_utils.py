@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
+from common_search_utils import CommonSearchUtils
 from wotv_bot_common import ExposableException
 
 class AmbiguousSearchException(ExposableException):
@@ -88,20 +89,6 @@ class WorksheetUtils:
         return result
 
     @staticmethod
-    def fuzzyMatches(sheet_text, search_text):
-        """Performs a fuzzy match within the specified text.
-
-        Breaks the specified search_text on whitespace, then does a case-insensitive substring match on each of the
-        resulting words. If ALL the words are found somewhere in the sheet_text, then it is considered to be a
-        match and the method returns True; otherwise, returns False.
-        """
-        words = search_text.split() # by default splits on all whitespace PRESERVING punctuation, which is important...
-        for word in words:
-            if not word.lower() in sheet_text.lower():
-                return False
-        return True
-
-    @staticmethod
     def normalizeName(fancy_name):
         """Normalize a name, lowercasing it and replacing spaces with hyphens."""
         return fancy_name.strip().lower().replace(' ', '-')
@@ -156,7 +143,7 @@ class WorksheetUtils:
                     return (row_count, candidate_text)
                 if WorksheetUtils.normalizeName(candidate_text).startswith(normalized_search_text):
                     prefix_matches.append((row_count, candidate_text))
-                if WorksheetUtils.fuzzyMatches(candidate_text, search_text):
+                if CommonSearchUtils.fuzzyMatches(candidate_text, search_text):
                     fuzzy_matches.append((row_count, candidate_text))
         if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
             raise NoResultsException('No match for ```{0}```'.format(search_text))
@@ -225,7 +212,7 @@ class WorksheetUtils:
                     return [(row_count, candidate_text)]
                 if WorksheetUtils.normalizeName(candidate_text).startswith(normalized_search_text):
                     prefix_matches.append((row_count, candidate_text))
-                if WorksheetUtils.fuzzyMatches(candidate_text, search_text):
+                if CommonSearchUtils.fuzzyMatches(candidate_text, search_text):
                     fuzzy_matches.append((row_count, candidate_text))
         if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):
             return []
@@ -279,7 +266,7 @@ class WorksheetUtils:
                 if WorksheetUtils.normalizeName(candidate_text).startswith(normalized_search_text):
                     column_A1 = WorksheetUtils.toA1(column_count)
                     prefix_matches.append((column_A1, candidate_text))
-                if WorksheetUtils.fuzzyMatches(candidate_text, search_text):
+                if CommonSearchUtils.fuzzyMatches(candidate_text, search_text):
                     column_A1 = WorksheetUtils.toA1(column_count)
                     fuzzy_matches.append((column_A1, candidate_text))
         if exact_match_string or (len(fuzzy_matches) == 0 and len(prefix_matches) == 0):

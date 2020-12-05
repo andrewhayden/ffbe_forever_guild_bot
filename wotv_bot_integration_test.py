@@ -9,6 +9,7 @@ import types
 
 from admin_utils import AdminUtils
 from data_files import DataFiles
+from data_file_search_utils import DataFileSearchUtils
 from esper_resonance_manager import EsperResonanceManager
 from vision_card_ocr_utils import VisionCardOcrUtils
 from wotv_bot import WotvBot, WotvBotConfig
@@ -680,6 +681,72 @@ class WotvBotIntegrationTests:
         data_files.sanityCheckCounts(min_unit_count=1, min_skill_count=2, min_job_count=3)
         data_files.sanityCheckMont()
 
+    async def testDataFileSearchUtils_findUnitWithSkillName(self): # async for convenience of standalone test runner, which expects a coroutine
+        """Test searching for a unit with a skill name"""
+        data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
+        # Test exact match with a Board Skill
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Killer Blade"')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Killer Blade'
+        assert matches[0].board_skill.unlocked_by_job_level == 7
+
+        # Test exact match with a Master Ability
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Master Ability"')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Master Ability'
+        assert matches[0].is_master_ability is True
+        assert matches[0].board_skill is None
+
+        # Test fuzzy match with a Board Skill
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'ler LAD')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+
+        # Test fuzzy match with a Master Ability
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'MaStEr')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].is_master_ability is True
+        assert matches[0].board_skill is None
+        assert matches[0].skill.name == 'Master Ability'
+
+    async def testDataFileSearchUtils_findUnitWithSkillDescription(self): # async for convenience of standalone test runner, which expects a coroutine
+        """Test searching for a unit with a skill description"""
+        data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
+        # Test exact match with a Board Skill
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"Deals Dmg (L) to target & bestows Man Eater."')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Killer Blade'
+        assert matches[0].is_master_ability is False
+        assert matches[0].board_skill.unlocked_by_job_level == 7
+
+        # Test exact match with Master Ability skill
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"DEF +15, Jump +1"')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Master Ability'
+        assert matches[0].is_master_ability is True
+        assert matches[0].board_skill is None
+
+        # Test fuzzy match with a Board Skill
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'AN EAT') # Master ability
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Killer Blade'
+        assert matches[0].is_master_ability is False
+        assert matches[0].board_skill.unlocked_by_job_level == 7
+
+        # Test fuzzy match with Master Ability skill
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'JuMp') # Master ability
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Master Ability'
+        assert matches[0].is_master_ability is True
+        assert matches[0].board_skill is None
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
@@ -692,6 +759,10 @@ class WotvBotIntegrationTests:
         """Run all tests in the integration test suite."""
         print('>>> Test: testDataFiles_ParseDataDump')
         self.testDataFiles_ParseDataDump()
+        print('>>> Test: testDataFileSearchUtils_findUnitWithSkillName')
+        self.testDataFileSearchUtils_findUnitWithSkillName()
+        print('>>> Test: testDataFileSearchUtils_findUnitWithSkillDescription')
+        self.testDataFileSearchUtils_findUnitWithSkillDescription()
 
         # Core tests
         print('>>> Test: testCommand_Help')
