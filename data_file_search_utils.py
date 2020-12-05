@@ -16,7 +16,7 @@ class UnitSkillSearchResult:
     is_master_ability: bool = False
     board_skill: WotvBoardSkill = None
     skill: WotvSkill = None
-    
+
 class DataFileSearchUtils:
     """Tools for searching and filtering within the data files."""
     @staticmethod
@@ -27,13 +27,14 @@ class DataFileSearchUtils:
         exact_match_only = search_text.startswith('"') and search_text.endswith('"')
         if exact_match_only:
             search_text = (search_text[1:-1])
+        search_text = search_text.lower()
 
         results = []
         for unit in data_files.units_by_id.values():
             for ability_board_skill in unit.ability_board.all_skills.values():
                 skill = data_files.skills_by_id[ability_board_skill.skill_id]
-                if (exact_match_only and skill.name == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name, search_text)):
+                if (exact_match_only and skill.name.lower() == search_text) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
                     one_result = UnitSkillSearchResult()
                     one_result.unit = unit
                     one_result.board_skill = ability_board_skill
@@ -41,8 +42,8 @@ class DataFileSearchUtils:
                     results.append(one_result)
             for master_skill in unit.master_abilities:
                 skill = data_files.skills_by_id[master_skill.unique_id]
-                if (exact_match_only and skill.name == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name, search_text)):
+                if (exact_match_only and skill.name.lower() == search_text) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
                     one_result = UnitSkillSearchResult()
                     one_result.unit = unit
                     one_result.is_master_ability = True
@@ -58,13 +59,14 @@ class DataFileSearchUtils:
         exact_match_only = search_text.startswith('"') and search_text.endswith('"')
         if exact_match_only:
             search_text = (search_text[1:-1])
+        search_text = search_text.lower()
 
         results = []
         for unit in data_files.units_by_id.values():
             for ability_board_skill in unit.ability_board.all_skills.values():
                 skill = data_files.skills_by_id[ability_board_skill.skill_id]
-                if (exact_match_only and skill.description == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description, search_text)):
+                if (exact_match_only and skill.description.lower() == search_text) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
                     one_result = UnitSkillSearchResult()
                     one_result.unit = unit
                     one_result.board_skill = ability_board_skill
@@ -72,8 +74,8 @@ class DataFileSearchUtils:
                     results.append(one_result)
             for master_skill in unit.master_abilities:
                 skill = data_files.skills_by_id[master_skill.unique_id]
-                if (exact_match_only and skill.description == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description, search_text)):
+                if (exact_match_only and skill.description.lower() == search_text) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
                     one_result = UnitSkillSearchResult()
                     one_result.unit = unit
                     one_result.is_master_ability = True

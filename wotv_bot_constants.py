@@ -15,6 +15,12 @@ class WotvBotConstants:
     `!resonance-lookup discord-nickname unit-name/esper-name`
     > Get **someone else's** resonance for the named unit and esper. Unlike !resonance and !resonance-set, the discord-nickname here is not resolved against the user's snowflake ID. Put another way, it's just the name of the tab in the spreadsheet. This can access data of a former guild members, if your guild leader hasn't deleted it. Example: *!resonance-lookup JohnDoe mont/cactuar*
 
+    `!skills-by-name`
+    > Find units who have the specified skill name. Note that this only searches skill NAMES, not skill DESCRIPTIONS. To search skill descriptions, use !skills-by-desc.
+
+    `!skills-by-desc`
+    > Find units who have the specified skill description. Note that this only searches skill DESCRIPTIONS, not skill NAMES. To search skill names, use !skills-by-name.
+
     `!vc-set`
     > Send this message with no other text, and attach a screenshot of a vision card. The bot will save your vision card stats. If it doesn't work, see *!vc-debug* below.
 
@@ -27,7 +33,7 @@ class WotvBotConstants:
     `!vc-ability ability-text`
     > Find vision cards that **you own** that have abilities matching the specified text. See rules on matching below, matching against "ability-text" is done in the same was as it is for esper names, etc.
 
-    **Names of Espers, Units, Vision Cards, etceteras**
+    **Searching within names of Espers, Units, Vision Cards, Skills, Skill Descriptions, etc**
     You don't have to type out "Sterne Leonis" and "Tetra Sylphid"; you can just shorthand it as "stern/tetra", or even "st/te". Specifically, here's how searching works:
     1. If you enclose the name of the unit, esper, vision card (etc) in double quotes, only an EXACT MATCH will be performed. This is handy to force the correct unit when dealing with some unique situations like "Little Leela" and "Little Leela (Halloween)"
     2. Otherwise, if there's only one possible name that STARTS WITH the shorthand, that's enough. For example, there's only one unit whose name starts with "Lass" (Lasswell), so you can just type "Lass" (without the quotes).
@@ -65,6 +71,12 @@ class WotvBotConstants:
 
     # Pattern to retieve one of your own vision card's stats.
     VISION_CARD_ABILITY_SEARCH = re.compile(r'^!vc-ability (?P<search_text>.+)$')
+
+    # Pattern to retieve a list of skills by name
+    FIND_SKILLS_BY_NAME_PATTERN = re.compile(r'^!skills-by-name (?P<search_text>.+)$')
+
+    # Pattern to retieve a list of skills by description
+    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription) (?P<search_text>.+)$')
 
     # (Hidden) Pattern for getting your own user ID out of Discord
     WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')

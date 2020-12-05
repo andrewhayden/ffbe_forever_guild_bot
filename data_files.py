@@ -57,6 +57,9 @@ class DataFiles:
 
         Note that this method will block until all files are read and processed, which may take considerable time.
         """
+        if not data_dump_root_path.endswith('/'):
+            data_dump_root_path += '/'
+
         json_ability_boards = None
         json_job_names = None
         json_skill_descriptions = None
@@ -146,7 +149,7 @@ class DataFiles:
                     temp_board_skill = WotvBoardSkill()
                     temp_board_skill.skill_id = panel_entry['value']
                     job_index = panel_entry['get_job'] # 1-based index into the job list for the unit
-                    temp_board_skill.unlocked_by_job_key = temp_unit.job_list[job_index - 1]
+                    temp_board_skill.unlocked_by_job = temp_unit.job_list[job_index - 1]
                     if 'need_level' in panel_entry:
                         temp_board_skill.unlocked_by_job_level = panel_entry['need_level']
                     temp_board.all_skills[temp_board_skill.skill_id] = temp_board_skill

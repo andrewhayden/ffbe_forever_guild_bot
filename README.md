@@ -17,6 +17,8 @@ pip install --upgrade pip
 pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib pytesseract numpy imutils opencv-python opencv-contrib-python discord.py
 ```
 
+You will also need to clone a copy of the War of the Visions data dump github project at https://github.com/shalzuth/wotv-ffbe-dump. Make note of the path where this is located.
+
 After checkout, and whenever you want to run the bot:
 ```
 python3 -m venv bot-env
@@ -48,7 +50,8 @@ Now we will create the config file ```bot_config.json``` in the same directory a
   "sandbox_esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
   "vision_card_spreadsheet_id": "your_vision_card_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_google_spreadsheet_id_here",
-  "discord_bot_token": "your_discord_bot_token_here"
+  "discord_bot_token": "your_discord_bot_token_here",
+  "data_dump_root_path": "path/to/your/wotv-ffbe-dump/"
 }
 ```
 
@@ -94,6 +97,7 @@ different than the IDs you specify in the ```bot_config.json```. This is super i
   "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
   "vision_card_spreadsheet_id": "your_vision_card_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here"
+  "data_dump_root_path": "integ_test_res/mock_data_dump"
 }
 ```
 

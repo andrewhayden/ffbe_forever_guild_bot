@@ -5,6 +5,7 @@ import json
 import logging
 import discord
 
+from data_files import DataFiles
 from wotv_bot_common import ExposableException
 from wotv_bot import WotvBotConfig, WotvBot
 from worksheet_utils import WorksheetUtils
@@ -32,6 +33,7 @@ def readConfig(file_path) -> GlobalConfig:
         wotv_bot_config.esper_resonance_spreadsheet_id = data['esper_resonance_spreadsheet_id']
         wotv_bot_config.vision_card_spreadsheet_id = data['vision_card_spreadsheet_id']
         wotv_bot_config.sandbox_esper_resonance_spreadsheet_id = data['sandbox_esper_resonance_spreadsheet_id']
+        wotv_bot_config.data_files = DataFiles.parseDataDump(data['data_dump_root_path'])
         discord_bot_token = data['discord_bot_token']
     return GlobalConfig(wotv_bot_config, discord_bot_token)
 

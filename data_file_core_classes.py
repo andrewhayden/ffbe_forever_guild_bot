@@ -27,7 +27,7 @@ class WotvSkill:
 class WotvBoardSkill:
     """A skill that is unlocked via the ability board."""
     skill_id: str = None                # Indirection to a WotvSkill.unique_id, example: "SK_LW_WAR_M_4"
-    unlocked_by_job_key: str = None     # Indirection to a WotvJob.unique_id, example: "JB_LW_WAR" (see WotvJob)
+    unlocked_by_job: WotvJob = None     # The WotvJob that unlocks the skill (see WotvJob)
     unlocked_by_job_level: int = None   # Example: 7
 
 @dataclass

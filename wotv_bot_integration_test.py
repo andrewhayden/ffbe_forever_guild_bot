@@ -138,6 +138,7 @@ class WotvBotIntegrationTests:
             wotv_bot_config.esper_resonance_spreadsheet_id = data['esper_resonance_spreadsheet_id']
             wotv_bot_config.vision_card_spreadsheet_id = data['vision_card_spreadsheet_id']
             wotv_bot_config.sandbox_esper_resonance_spreadsheet_id = data['sandbox_esper_resonance_spreadsheet_id']
+            wotv_bot_config.data_files = DataFiles.parseDataDump(data['data_dump_root_path'])
         return wotv_bot_config
 
     def resetEsperResonance(self):
@@ -689,6 +690,7 @@ class WotvBotIntegrationTests:
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Killer Blade'
+        assert matches[0].board_skill.unlocked_by_job.name == 'Lord'
         assert matches[0].board_skill.unlocked_by_job_level == 7
 
         # Test exact match with a Master Ability
@@ -721,6 +723,7 @@ class WotvBotIntegrationTests:
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Killer Blade'
         assert matches[0].is_master_ability is False
+        assert matches[0].board_skill.unlocked_by_job.name == 'Lord'
         assert matches[0].board_skill.unlocked_by_job_level == 7
 
         # Test exact match with Master Ability skill
@@ -737,6 +740,7 @@ class WotvBotIntegrationTests:
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Killer Blade'
         assert matches[0].is_master_ability is False
+        assert matches[0].board_skill.unlocked_by_job.name == 'Lord'
         assert matches[0].board_skill.unlocked_by_job_level == 7
 
         # Test fuzzy match with Master Ability skill
@@ -746,6 +750,73 @@ class WotvBotIntegrationTests:
         assert matches[0].skill.name == 'Master Ability'
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
+
+    async def testCommand_SkillsByName(self):
+        """Test searching for skills by name."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # Test fuzzy match for Killer Blade
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Skill "Killer Blade" learned by Mont Leonis with job Lord at job level 7'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Blade'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for Killer Blade
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Killer Blade"'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test fuzzy match for master ability
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Master ability for Mont Leonis: DEF +15, Jump +1'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for master ability
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Master Ability"'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for nonexistent skill
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: No skills matched the search.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Nonexistent Skill"'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test fuzzy match for nonexistent skill
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name qwyjibo'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+
+    async def testCommand_SkillsByDescription(self):
+        """Test searching for skills by description."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # Test fuzzy match for Killer Blade
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Skill "Killer Blade" learned by Mont Leonis with job Lord at job level 7'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description eater'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for Killer Blade
+        (response_text, reaction) = await wotv_bot.handleMessage(
+            self.makeMessage(message_text='!skills-by-description "Deals Dmg (L) to target & bestows Man Eater."'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test fuzzy match for master ability
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Master ability for Mont Leonis: DEF +15, Jump +1'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description DEF'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for master ability
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description "DEF +15, Jump +1"'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for nonexistent skill
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: No skills matched the search.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description "Nonexistent skill description"'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test fuzzy match for nonexistent skill
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description qwyjibo'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
 
     @staticmethod
     def cooldown(time_secs: int=30):
@@ -757,12 +828,18 @@ class WotvBotIntegrationTests:
 
     async def runAllTests(self):
         """Run all tests in the integration test suite."""
+
+        # Data dump skills don't require any network access and run very fast, do them first.
         print('>>> Test: testDataFiles_ParseDataDump')
         self.testDataFiles_ParseDataDump()
         print('>>> Test: testDataFileSearchUtils_findUnitWithSkillName')
         self.testDataFileSearchUtils_findUnitWithSkillName()
         print('>>> Test: testDataFileSearchUtils_findUnitWithSkillDescription')
         self.testDataFileSearchUtils_findUnitWithSkillDescription()
+        print('>>> Test: testCommand_SkillsByName')
+        self.testCommand_SkillsByName()
+        print('>>> Test: testCommand_SkillsByDescription')
+        self.testCommand_SkillsByDescription()
 
         # Core tests
         print('>>> Test: testCommand_Help')

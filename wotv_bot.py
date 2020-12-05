@@ -7,6 +7,8 @@ from re import Match
 import discord
 
 from admin_utils import AdminUtils
+from data_files import DataFiles
+from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult
 from wotv_bot_constants import WotvBotConstants
 from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
@@ -29,6 +31,7 @@ class WotvBotConfig:
     vision_card_spreadsheet_id: the ID of the spreadsheet where vision cards are tracked
     spreadsheet_app: the Google spreadsheets Resource obtained from calling the spreadsheets() method on a Service Resource.
     discord_client: the Discord client
+    data_files: the WotV data dump.
     """
     access_control_spreadsheet_id: str = None
     esper_resonance_spreadsheet_id: str = None
@@ -36,6 +39,7 @@ class WotvBotConfig:
     vision_card_spreadsheet_id: str = None
     spreadsheet_app = None
     discord_client = None
+    data_files: DataFiles = None
 
 @dataclass
 class CommandContextInfo:
@@ -145,6 +149,14 @@ class WotvBot:
 
         if WotvBotConstants.VISION_CARD_DEBUG_PATTERN.match(message.content.lower()):
             return await self.handleVisionCardDebug(context.shallowCopy().withVisionCardManager(vision_card_manager))
+
+        match = WotvBotConstants.FIND_SKILLS_BY_NAME_PATTERN.match(message.content.lower())
+        if match:
+            return await self.handleFindSkillsByName(context.shallowCopy().withMatch(match))
+
+        match = WotvBotConstants.FIND_SKILLS_BY_DESCRIPTION_PATTERN.match(message.content.lower())
+        if match:
+            return await self.handleFindSkillsByDescription(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if message.content.lower().startswith('!whoami'):
@@ -384,3 +396,37 @@ class WotvBot:
             for bestowed_effect in vision_card.BestowedEffects:
                 responseText += '    Bestowed Effect: ' + bestowed_effect + '\n'
         return (responseText, None)
+
+    def prettyPrintUnitSkillSearchResult(self, result: UnitSkillSearchResult):
+        """Print a useful, human-readable description of the skill match including the unit name, the skill name, and how the skill is unlocked."""
+        if result.is_master_ability:
+            return 'Master ability for ' + result.unit.name + ': ' + result.skill.description
+        text = 'Skill "' + result.skill.name + '" learned by ' + result.unit.name
+        text += ' with job ' + result.board_skill.unlocked_by_job.name + ' at job level ' + str(result.board_skill.unlocked_by_job_level)
+        return text
+
+    async def handleFindSkillsByName(self, context: CommandContextInfo) -> (str, str):
+        """Handle !skills-by-name command"""
+        search_text = context.command_match.group('search_text').strip()
+        print('skills-by-name search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
+        results = DataFileSearchUtils.findUnitWithSkillName(self.wotv_bot_config.data_files, search_text)
+        if len(results) == 0:
+            responseText = '<@{0}>: No skills matched the search.'.format(context.from_id)
+            return (responseText, None)
+        responseText = '<@{0}>: Matching Skills:\n'.format(context.from_id)
+        for result in results:
+            responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
+        return (responseText.strip(), None)
+
+    async def handleFindSkillsByDescription(self, context: CommandContextInfo) -> (str, str):
+        """Handle !skills-by-desc command"""
+        search_text = context.command_match.group('search_text').strip()
+        print('skills-by-description search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
+        results = DataFileSearchUtils.findUnitWithSkillDescription(self.wotv_bot_config.data_files, search_text)
+        if len(results) == 0:
+            responseText = '<@{0}>: No skills matched the search.'.format(context.from_id)
+            return (responseText, None)
+        responseText = '<@{0}>: Matching Skills:\n'.format(context.from_id)
+        for result in results:
+            responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
+        return (responseText.strip(), None)
