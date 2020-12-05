@@ -32,23 +32,25 @@ class DataFileSearchUtils:
         results = []
         for unit in data_files.units_by_id.values():
             for ability_board_skill in unit.ability_board.all_skills.values():
-                skill = data_files.skills_by_id[ability_board_skill.skill_id]
-                if (exact_match_only and skill.name.lower() == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
-                    one_result = UnitSkillSearchResult()
-                    one_result.unit = unit
-                    one_result.board_skill = ability_board_skill
-                    one_result.skill = skill
-                    results.append(one_result)
+                if ability_board_skill.skill_id in data_files.skills_by_id:
+                    skill = data_files.skills_by_id[ability_board_skill.skill_id]
+                    if (exact_match_only and skill.name.lower() == search_text) or (
+                        (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
+                        one_result = UnitSkillSearchResult()
+                        one_result.unit = unit
+                        one_result.board_skill = ability_board_skill
+                        one_result.skill = skill
+                        results.append(one_result)
             for master_skill in unit.master_abilities:
-                skill = data_files.skills_by_id[master_skill.unique_id]
-                if (exact_match_only and skill.name.lower() == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
-                    one_result = UnitSkillSearchResult()
-                    one_result.unit = unit
-                    one_result.is_master_ability = True
-                    one_result.skill = skill
-                    results.append(one_result)
+                if master_skill.unique_id in data_files.skills_by_id:
+                    skill = data_files.skills_by_id[master_skill.unique_id]
+                    if (exact_match_only and skill.name.lower() == search_text) or (
+                        (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
+                        one_result = UnitSkillSearchResult()
+                        one_result.unit = unit
+                        one_result.is_master_ability = True
+                        one_result.skill = skill
+                        results.append(one_result)
         return results
 
     @staticmethod
@@ -64,21 +66,23 @@ class DataFileSearchUtils:
         results = []
         for unit in data_files.units_by_id.values():
             for ability_board_skill in unit.ability_board.all_skills.values():
-                skill = data_files.skills_by_id[ability_board_skill.skill_id]
-                if (exact_match_only and skill.description.lower() == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
-                    one_result = UnitSkillSearchResult()
-                    one_result.unit = unit
-                    one_result.board_skill = ability_board_skill
-                    one_result.skill = skill
-                    results.append(one_result)
+                if ability_board_skill.skill_id in data_files.skills_by_id:
+                    skill = data_files.skills_by_id[ability_board_skill.skill_id]
+                    if (exact_match_only and skill.description.lower() == search_text) or (
+                        (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
+                        one_result = UnitSkillSearchResult()
+                        one_result.unit = unit
+                        one_result.board_skill = ability_board_skill
+                        one_result.skill = skill
+                        results.append(one_result)
             for master_skill in unit.master_abilities:
-                skill = data_files.skills_by_id[master_skill.unique_id]
-                if (exact_match_only and skill.description.lower() == search_text) or (
-                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
-                    one_result = UnitSkillSearchResult()
-                    one_result.unit = unit
-                    one_result.is_master_ability = True
-                    one_result.skill = skill
-                    results.append(one_result)
+                if master_skill.unique_id in data_files.skills_by_id:
+                    skill = data_files.skills_by_id[master_skill.unique_id]
+                    if (exact_match_only and skill.description.lower() == search_text) or (
+                        (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
+                        one_result = UnitSkillSearchResult()
+                        one_result.unit = unit
+                        one_result.is_master_ability = True
+                        one_result.skill = skill
+                        results.append(one_result)
         return results
