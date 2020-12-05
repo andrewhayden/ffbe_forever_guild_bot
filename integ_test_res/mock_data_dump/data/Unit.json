@@ -1,0 +1,100 @@
+{
+    "items": [
+      {
+        "iname": "UN_LW_P_MONT",
+        "hero": 1,
+        "sex": 1,
+        "size": 0,
+        "body_type": "MM",
+        "personal": 8,
+        "charaId": "LAPSmont",
+        "anm_type": 1,
+        "voiceId": "LAPSmont_00",
+        "type": 0,
+        "elem": [
+          4
+        ],
+        "species": [
+          1
+        ],
+        "birth": 2,
+        "rare": 3,
+        "grow": "SR_DEFAULT",
+        "cost": 50,
+        "piece": "IT_PI_LW_MONT",
+        "piece_num": 20,
+        "db_num": 1,
+        "trust": "AF_ACC_LW_MONT_1",
+        "atkskl": "SK_LW_WAR_ATK",
+        "mstskl": [
+          "SK_MA_LW_MONT"
+        ],
+        "jobsets": [
+          "JB_LW_WAR",
+          "JB_LW_PLD_SOIL",
+          "JB_LW_KNT_SOIL"
+        ],
+        "ai": "AI_PLAYER_LW_WAR",
+        "buff_pri": "BUFFPRI_PHYATK",
+        "debuff_pri": "DEBUFFPRI_PHYATK",
+        "status": [
+          {
+            "hp": 255,
+            "mp": 47,
+            "ap": 70,
+            "atk": 58,
+            "def": 0,
+            "mag": 26,
+            "mnd": 0,
+            "dex": 56,
+            "spd": 25,
+            "luk": 56,
+            "ewi": -15,
+            "eth": 15,
+            "asl": 10,
+            "api": -5,
+            "abl": 25,
+            "ash": -10,
+            "ama": -25,
+            "cpo": -10,
+            "csl": -10,
+            "cpa": 40,
+            "ccf": 50,
+            "cch": -10,
+            "mov": 4,
+            "jmp": 1,
+            "dmax": 9999
+          },
+          {
+            "hp": 1013,
+            "mp": 74,
+            "ap": 87,
+            "atk": 98,
+            "def": 0,
+            "mag": 44,
+            "mnd": 0,
+            "dex": 92,
+            "spd": 30,
+            "luk": 88,
+            "ewi": -15,
+            "eth": 15,
+            "asl": 10,
+            "api": -5,
+            "abl": 25,
+            "ash": -10,
+            "ama": -25,
+            "cpo": -10,
+            "csl": -10,
+            "cpa": 40,
+            "ccf": 50,
+            "cch": -10,
+            "mov": 4,
+            "jmp": 1,
+            "dmax": 9999
+          }
+        ],
+        "limit": "SK_LB_LW_MONT",
+        "awake_tbl_id": "UN_AW_SOIL_SSR"
+      }
+    ]
+}

@@ -1,0 +1,16 @@
+{
+    "infos": [
+      {
+        "key": "JB_LW_WAR",
+        "value": "Lord"
+      },
+      {
+        "key": "JB_LW_PLD_SOIL",
+        "value": "Paladin"
+      },
+      {
+        "key": "JB_LW_KNT_SOIL",
+        "value": "Knight"
+      }
+    ]
+}

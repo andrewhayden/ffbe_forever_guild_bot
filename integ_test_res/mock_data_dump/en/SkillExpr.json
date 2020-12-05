@@ -1,0 +1,12 @@
+{
+    "infos": [
+      {
+        "key": "SK_MA_LW_MONT",
+        "value": "DEF +15, Jump +1"
+      },
+      {
+        "key": "SK_LW_WAR_M_4",
+        "value": "Deals Dmg (L) to target & bestows Man Eater."
+      }
+    ]
+}

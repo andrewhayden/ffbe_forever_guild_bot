@@ -1,0 +1,19 @@
+{
+    "items": [
+      {
+        "iname": "UN_LW_P_MONT",
+        "panels": [
+            {
+                "panel_id": 42,
+                "jp": 1250,
+                "panel_effect_type": 1,
+                "applicable_job": 1,
+                "value": "SK_LW_WAR_M_4",
+                "unlock_type": 4,
+                "unlock_value": 5,
+                "get_job": 1,
+                "need_level": 7
+            }
+        ]
+    }]
+}

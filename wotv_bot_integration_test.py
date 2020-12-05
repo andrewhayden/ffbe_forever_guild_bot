@@ -8,6 +8,7 @@ import time
 import types
 
 from admin_utils import AdminUtils
+from data_files import DataFiles
 from esper_resonance_manager import EsperResonanceManager
 from vision_card_ocr_utils import VisionCardOcrUtils
 from wotv_bot import WotvBot, WotvBotConfig
@@ -62,6 +63,9 @@ class WotvBotIntegrationTests:
     # Another test unit
     TEST_UNIT2_NAME = 'TestUnit2'
     TEST_UNIT2_URL = 'http://www.example.com/unit2'
+
+    # For testing data dump functionality
+    MOCK_DATA_DUMP_ROOT_PATH = 'integ_test_res/mock_data_dump'
 
     """An instance of the bot, configured to manage specific spreadsheets and using Discord and Google credentials."""
     def __init__(self, wotv_bot_config: WotvBotConfig):
@@ -669,6 +673,13 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
+    async def testDataFiles_ParseDataDump(self): # async for convenience of standalone test runner, which expects a coroutine
+        """Test the basic functionality of the data dump parser"""
+        data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
+        # Integration tests only have Mont with two skills (master ability and Killer Blade), and his 3 jobs.
+        data_files.sanityCheckCounts(min_unit_count=1, min_skill_count=2, min_job_count=3)
+        data_files.sanityCheckMont()
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
@@ -679,6 +690,9 @@ class WotvBotIntegrationTests:
 
     async def runAllTests(self):
         """Run all tests in the integration test suite."""
+        print('>>> Test: testDataFiles_ParseDataDump')
+        self.testDataFiles_ParseDataDump()
+
         # Core tests
         print('>>> Test: testCommand_Help')
         await self.testCommand_Help()

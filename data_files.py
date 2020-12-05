@@ -2,6 +2,7 @@
 
 Built specifically to handle files and formatting from https://github.com/shalzuth/wotv-ffbe-dump.
 """
+from __future__ import annotations
 import json
 import sys
 
@@ -17,6 +18,11 @@ class DataFiles:
     PATH_TO_SKILL_NAMES = "en/SkillName.json"
     PATH_TO_UNIT_DATA = "data/Unit.json"
     PATH_TO_UNIT_NAMES = "en/UnitName.json"
+
+    # Pick some values near the current maxima as of 2020-12-05, assuming these will only ever increase
+    MIN_UNIT_COUNT = 85 # Only include playable units, in case the other stuff gets moved off elsewhere (seems likely, eventually)
+    MIN_SKILL_COUNT = 2000
+    MIN_JOB_COUNT = 230
 
     def __init__(self, units_by_id: Dict[str, WotvUnit], skills_by_id: Dict[str, WotvSkill], jobs_by_id: Dict[str, WotvJob]):
         self.units_by_id = units_by_id
@@ -115,24 +121,26 @@ class DataFiles:
                     temp_board_skill.unlocked_by_job_key = temp_unit.job_list[job_index - 1]
                     if 'need_level' in panel_entry:
                         temp_board_skill.unlocked_by_job_level = panel_entry['need_level']
+                    temp_board.all_skills[temp_board_skill.skill_id] = temp_board_skill
         print('Discovered and bound ' + str(board_count) + ' ability boards for playable units, containing a total of ' + str(skill_count) + ' skills.')
         return DataFiles(result_all_units_by_id, result_skills_by_id, result_jobs_by_id)
 
-    @staticmethod
-    def invokeStandalone(data_dump_root_path: str):
-        """Check the basic integrity of the data dump."""
-        result = DataFiles.parseDataDump(data_dump_root_path + '/')
+    def sanityCheckCounts(self, min_unit_count: int = MIN_UNIT_COUNT, min_skill_count: int = MIN_SKILL_COUNT, min_job_count: int = MIN_JOB_COUNT):
+        """Check that the counts of units, skills, and jobs (etc) in the data dump are sane."""
         # Pick some values near the current maxima as of 2020-12-05, assuming these will only ever increase
-        if len(result.units_by_id) < 85: # Only include playable units, in case the other stuff gets moved off elsewhere (seems likely, eventually)
-            raise Exception('Too few units in data dump for it to be sane')
-        print('Unit count looks sane: ' + str(len(result.units_by_id)) + ' is >= 85')
-        if len(result.skills_by_id) < 2000:
-            raise Exception('Too few skills in data dump for it to be sane')
-        print('Skill count looks sane: ' + str(len(result.skills_by_id)) + ' is >= 2000')
-        if len(result.jobs_by_id) < 230:
-            raise Exception('Too few jobs in data dump for it to be sane')
-        print('Job count looks sane: ' + str(len(result.jobs_by_id)) + ' is >= 230')
-        mont = result.units_by_id['UN_LW_P_MONT']
+        num_units = len(self.units_by_id)
+        if num_units < min_unit_count: # Only include playable units, in case the other stuff gets moved off elsewhere (seems likely, eventually)
+            raise Exception('Too few units in data dump for it to be sane: ' + str(num_units) + "<" + str(min_unit_count))
+        num_skills = len(self.skills_by_id)
+        if num_skills < min_skill_count:
+            raise Exception('Too few skills in data dump for it to be sane: ' + str(num_skills) + '<' + str(min_skill_count))
+        num_jobs = len(self.jobs_by_id)
+        if num_jobs < min_job_count:
+            raise Exception('Too few jobs in data dump for it to be sane: ' + str(num_jobs) + '<' + str(min_skill_count))
+
+    def sanityCheckMont(self):
+        """Check that Mont is present and that he has a sane set of jobs, Killer Blade, etc."""
+        mont = self.units_by_id['UN_LW_P_MONT']
         if mont is None:
             raise Exception('Cannot find Mont (UN_LW_P_MONT)!')
         print('Mont unit data is present.')
@@ -144,8 +152,17 @@ class DataFiles:
         print('Mont has exactly 3 jobs.')
         if mont.job_list[0].name != 'Lord' or mont.job_list[1].name != 'Paladin' or mont.job_list[2].name != 'Knight':
             raise Exception('Mont has the wrong jobs: ' + str(mont.job_list))
-        print('Mont has the expected jobs.')
+        if 'SK_LW_WAR_M_4' not in self.skills_by_id:
+            raise Exception('Killer Blade is missing from the skills list!')
+        if 'SK_LW_WAR_M_4' not in mont.ability_board.all_skills:
+            raise Exception('Mont is missing Killer Blade!')
 
+    @staticmethod
+    def invokeStandalone(data_dump_root_path: str):
+        """Check the basic integrity of the data dump."""
+        result = DataFiles.parseDataDump(data_dump_root_path + '/')
+        result.sanityCheckCounts()
+        result.sanityCheckMont()
         print('Data dump appears to be intact and parsing appears to be sane.')
 
 if __name__ == "__main__":
