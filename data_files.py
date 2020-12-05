@@ -19,6 +19,28 @@ class DataFiles:
     PATH_TO_UNIT_DATA = "data/Unit.json"
     PATH_TO_UNIT_NAMES = "en/UnitName.json"
 
+    # The elements, by their 0-based IDs.
+    ELEMENT_NAME_BY_ID: Dict(int, str) = {
+        0: 'None', # Non-element units do exist in the data as of 2020-12-05, such as Muraga Fennes.
+        1: 'Fire',
+        2: 'Ice',
+        3: 'Wind',
+        4: 'Earth', # In the game files this is called "soil"
+        5: 'Lightning',
+        6: 'Water',
+        7: 'Light', # In the game files this is called "shine"
+        8: 'Dark'
+    }
+
+    # Short-form names, by their 0-based IDs (N, R, SR, MR, UR).
+    SHORT_RARITY_BY_ID: Dict(int, str) = {
+        0: 'N',
+        1: 'R',
+        2: 'SR',
+        3: 'MR',
+        4: 'UR'
+    }
+
     # Pick some values near the current maxima as of 2020-12-05, assuming these will only ever increase
     MIN_UNIT_COUNT = 85 # Only include playable units, in case the other stuff gets moved off elsewhere (seems likely, eventually)
     MIN_SKILL_COUNT = 2000
@@ -87,7 +109,7 @@ class DataFiles:
             temp_unit.unique_id = json_entry['key']
             temp_unit.name = json_entry['value']
             result_all_units_by_id[temp_unit.unique_id] = temp_unit
-        print('Discovered ' + str(len(result_all_units_by_id)) + ' units (includes enemies, traps, etc).')
+        print('Discovered ' + str(len(result_all_units_by_id)) + ' units (includes enemies, espers, traps, etc).')
 
         # Fill in all remaining unit details except the ability board, because it needs the job order
         # to identify which job unlocks which skill (the ability board jobs list their unlock criteria
@@ -100,6 +122,12 @@ class DataFiles:
             if 'mstskl' in json_entry:
                 for skill_id in json_entry['mstskl']: # Master abilities
                     temp_unit.master_abilities.append(result_skills_by_id[skill_id])
+            if 'elem' in json_entry:
+                for element_id in json_entry['elem']:
+                    temp_unit.elements.append(DataFiles.ELEMENT_NAME_BY_ID[element_id])
+            if 'rare' in json_entry:
+                temp_unit.rarity = DataFiles.SHORT_RARITY_BY_ID[json_entry['rare']]
+
         print('Bound jobs and skills for ' + str(len(result_all_units_by_id)) + ' units.')
 
         # Finally, build up the list of ability boards.
@@ -156,6 +184,10 @@ class DataFiles:
             raise Exception('Killer Blade is missing from the skills list!')
         if 'SK_LW_WAR_M_4' not in mont.ability_board.all_skills:
             raise Exception('Mont is missing Killer Blade!')
+        if not mont.hasElement('Earth'):
+            raise Exception('Mont is not an Earth unit!')
+        if not mont.rarity == 'MR':
+            raise Exception('Mont is not an MR unit!')
 
     @staticmethod
     def invokeStandalone(data_dump_root_path: str):

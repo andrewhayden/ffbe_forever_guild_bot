@@ -42,8 +42,18 @@ class WotvAbilityBoard:
 class WotvUnit:
     """Data for a Unit"""
     is_playable: bool = False # True for playable characters, false for
+    # Although as of 2020-12-05 there are no playable units with multiple elements, units can (and will) have multiple elements.
+    elements: List[str] = field(default_factory=list) # Possible values are {"Fire", "Ice", "Wind", "Water", "Earth", "Light", "Dark", "Lightning", "None"}
+    rarity: str = None # Example: "MR"
     unique_id: str = None # Example: "UN_LW_P_MONT"
     name: str = None # Example: "Mont Leonis"
     ability_board: WotvAbilityBoard = WotvAbilityBoard() # Example: ("SK_LW_WAR_M_4" = WotvSkill)
     master_abilities: List[WotvSkill] = field(default_factory=list) # Example: [(the WotvSkill object whose key is SK_MA_LW_MONT)]
     job_list: List[WotvJob] = field(default_factory=list) # Example: [<WotvJob>, <WotvJob>, <WotvJob>] (typically exactly 3 jobs, ordered)
+
+    def hasElement(self, element_name: str):
+        """Returns true if and only if the unit has the specified element (must be one of Fire, Ice, Wind, Water, Earth, Light, Lightning, or None)."""
+        for element in self.elements:
+            if element.lower() == element_name.lower():
+                return True
+        return False
