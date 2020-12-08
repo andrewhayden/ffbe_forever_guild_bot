@@ -27,14 +27,17 @@ source bot-env/bin/activate
 
 Now configure the bot to connect to discord:
 * Visit https://discordpy.readthedocs.io/en/latest/discord.html and follow instructions to create your bot on Discord. Make a note of your token.
+* Also enable the Privileged Gateway Intent called "SERVER MEMBERS INTENT". You'll find this on the same screen where you generate invite links, below.
+  * This is only needed for the bot's !whois command to work properly. If you don't care about this, you can leave it off. This is primarily useful for adding users via Discord.
 * Back in the Discord console, generate your invite link. Make sure to give the following permissions in the invite URL:
   * Send Messages
   * Embed Links
   * Read Message History (future expansion)
-  * Add Reactions (future expansion)
+  * Add Reactions
   * The permissions above can be abbreviated in the URL as 84032.
 * Use the invitation link to invite the bot to a server that you have the authority to add it to.
   * It's probably best to make your own private server first and test everything out.
+  * Sample URL: https://discordapp.com/oauth2/authorize?client_id=YOUR_BOT_CLIENT_ID&scope=bot&permissions=84032
 
 Now we prepare to connect to Google
 * Visit https://developers.google.com/sheets/api/quickstart/python and follow instructions to create an OAuth app.

@@ -165,7 +165,7 @@ class WotvBot:
         # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure, but it's also not common, so it isn't listed.
         match = WotvBotConstants.WHOIS_PATTERN.match(message.content.lower())
         if match:
-            return self.handleWhoIs(context.shallowCopy().withMatch(match))
+            return await self.handleWhoIs(context.shallowCopy().withMatch(match))
 
         if WotvBotConstants.ADMIN_ADD_ESPER_PATTERN.match(message.content) or WotvBotConstants.SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(message.content):
             return self.handleAdminAddEsper(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
@@ -254,11 +254,14 @@ class WotvBot:
         responseText = '<@{id}>: Your snowflake ID is {id}'.format(id=context.from_id)
         return (responseText, None)
 
-    def handleWhoIs(self, context: CommandContextInfo) -> (str, str):
+    async def handleWhoIs(self, context: CommandContextInfo) -> (str, str):
         """Handle !whois command to fetch the snowflake ID for a given user."""
         original_match = WotvBotConstants.WHOIS_PATTERN.match(context.original_message.content) # Fetch original-case name
         target_member_name = original_match.group('server_handle').strip()
-        members = context.original_message.guild.members
+        # As of December 2020, possibly earlier, the following line no longer works:
+        # members = context.original_message.guild.members
+        # Instead have to fetch the list from the server, and enable the "SERVER MEMBERS INTENT" permission in the bot admin page on Discord.
+        members = await context.original_message.guild.fetch_members(limit=1000).flatten()
         for member in members:
             if member.name == target_member_name:
                 responseText = '<@{0}>: the snowflake ID for {1} is {2}'.format(context.from_id, target_member_name, member.id)
