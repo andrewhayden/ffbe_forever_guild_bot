@@ -6,13 +6,17 @@ from data_files import DataFiles
 from data_file_core_classes import WotvUnit, WotvBoardSkill, WotvSkill
 
 @dataclass
-class UnitSkillSearchResult:
+class UnitSearchResult:
+    """A unit search result containing (at least) a unit. Intended to be extended for more specific types of search results."""
+    unit: WotvUnit = None
+
+@dataclass
+class UnitSkillSearchResult(UnitSearchResult):
     """A unit skill search result containing a fully qualified result: the unit, the ability board criteria gating the skill, and the skill itself.
 
     The search result field is_master_ability is set to true if the result was a hit on a Master Ability instead of a Board Skill. In this case,
     the board_skill field will be set to None and the skill is a Master Ability.
     """
-    unit: WotvUnit = None
     is_master_ability: bool = False
     board_skill: WotvBoardSkill = None
     skill: WotvSkill = None

@@ -829,15 +829,15 @@ class WotvBotIntegrationTests:
     async def runDataFileTests(self):
         """Run only the data file tests. These are all local-execution only."""
         print('>>> Test: testDataFiles_ParseDataDump')
-        self.testDataFiles_ParseDataDump()
+        await self.testDataFiles_ParseDataDump()
         print('>>> Test: testDataFileSearchUtils_findUnitWithSkillName')
-        self.testDataFileSearchUtils_findUnitWithSkillName()
+        await self.testDataFileSearchUtils_findUnitWithSkillName()
         print('>>> Test: testDataFileSearchUtils_findUnitWithSkillDescription')
-        self.testDataFileSearchUtils_findUnitWithSkillDescription()
+        await self.testDataFileSearchUtils_findUnitWithSkillDescription()
         print('>>> Test: testCommand_SkillsByName')
-        self.testCommand_SkillsByName()
+        await self.testCommand_SkillsByName()
         print('>>> Test: testCommand_SkillsByDescription')
-        self.testCommand_SkillsByDescription()
+        await self.testCommand_SkillsByDescription()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
