@@ -405,11 +405,13 @@ class WotvBot:
 
     @staticmethod
     def rarityAndElementParenthetical(unit: WotvUnit) -> str:
-        text = '(' + unit.rarity + ' rarity, '
+        text = '(' + str(unit.rarity) + ' rarity, '
+        if not unit.elements:
+            return text + 'no element)'
         text += unit.elements[0]
         if len(unit.elements) > 1:
             for element in unit.elements[1:]:
-                text += '/' + element
+                text += '/' + str(element)
         text += ' element'
         if len(unit.elements) > 1:
             text += 's'

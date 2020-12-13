@@ -164,7 +164,7 @@ class DataFileSearchUtils:
         else:
             units_to_search = data_files.units_by_id.values()
         for unit in units_to_search:
-            if unit.rarity.lower() == rarity:
+            if unit.rarity and unit.rarity.lower() == rarity:
                 result = UnitSearchResult()
                 result.unit = unit
                 results.append(result)
