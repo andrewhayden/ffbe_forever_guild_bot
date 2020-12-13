@@ -966,6 +966,18 @@ class WotvBotIntegrationTests:
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name qwyjibo'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+        # Test refinements: Not earth
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Master ability for Engelbert: DEF +15'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master\n  not element earth'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test refinements: earth
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Master ability for Mont Leonis: DEF +15, Jump +1'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master\n eLeMent earTh'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
 
     async def testCommand_SkillsByDescription(self):
         """Test searching for skills by description."""
@@ -999,6 +1011,18 @@ class WotvBotIntegrationTests:
         assert reaction is None
         # Test fuzzy match for nonexistent skill
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc qwyjibo'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test refinements: Not earth
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Skill "Sentinel" learned by Engelbert with job Paladin at job level 3: Significantly raises own DEF/SPR for 1 turn & significantly lowers Evasion Rate for 1 turn.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc Evasion Rate\n  not element earth'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test refinements: earth
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Skill "Sentinel" learned by Mont Leonis with job Paladin at job level 5: Significantly raises own DEF/SPR for 1 turn & significantly lowers Evasion Rate for 1 turn.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc Evasion Rate\n\n\n eLeMent earTh\n\n'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 

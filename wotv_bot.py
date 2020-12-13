@@ -407,11 +407,25 @@ class WotvBot:
         text += ': ' + result.skill.description
         return text
 
+    @staticmethod
+    def getExtraCommandLines(context: CommandContextInfo):
+        lines = context.original_message.content.splitlines()
+        extra_lines = []
+        if len(lines) > 1:
+            for line in lines[1:]:
+                line = line.strip()
+                if line:
+                    extra_lines.append(line)
+        return extra_lines
+
     async def handleFindSkillsByName(self, context: CommandContextInfo) -> (str, str):
         """Handle !skills-by-name command"""
         search_text = context.command_match.group('search_text').strip()
         print('skills-by-name search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
-        results = DataFileSearchUtils.findUnitWithSkillName(self.wotv_bot_config.data_files, search_text)
+        refinements = WotvBot.getExtraCommandLines(context)
+        if len(refinements) > 1:
+            print('  refinements: ' + str(refinements))
+        results = DataFileSearchUtils.richUnitSearch(self.wotv_bot_config.data_files, 'skill-name', search_text, refinements)
         if len(results) == 0:
             responseText = '<@{0}>: No skills matched the search.'.format(context.from_id)
             return (responseText, None)
@@ -431,7 +445,10 @@ class WotvBot:
         """Handle !skills-by-desc command"""
         search_text = context.command_match.group('search_text').strip()
         print('skills-by-description search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
-        results = DataFileSearchUtils.findUnitWithSkillDescription(self.wotv_bot_config.data_files, search_text)
+        refinements = WotvBot.getExtraCommandLines(context)
+        if len(refinements) > 1:
+            print('  refinements: ' + str(refinements))
+        results = DataFileSearchUtils.richUnitSearch(self.wotv_bot_config.data_files, 'skill-desc', search_text, refinements)
         if len(results) == 0:
             responseText = '<@{0}>: No skills matched the search.'.format(context.from_id)
             return (responseText, None)
