@@ -1,5 +1,6 @@
 """Integration tests for the FFBEForever Guild Bot"""
 # pylint: disable=too-many-lines
+# pylint: disable=line-too-long
 from __future__ import annotations
 import asyncio
 import json

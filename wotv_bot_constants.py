@@ -40,7 +40,7 @@ class WotvBotConstants:
     FIND_SKILLS_BY_NAME_PATTERN = re.compile(r'^!skills-by-name (?P<search_text>.+)$')
 
     # Pattern to retieve a list of skills by description, with optional refinement criteria on separate additional lines.
-    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription)? (?:ription)?$')
+    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription)? (?P<search_text>.+)$')
 
     # Pattern to retieve a list of units, with a rich search syntax and optional criteria.
     # See detailed help for more information.

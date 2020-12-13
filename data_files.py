@@ -46,8 +46,13 @@ class DataFiles:
     MIN_SKILL_COUNT = 2000
     MIN_JOB_COUNT = 230
 
-    def __init__(self, units_by_id: Dict[str, WotvUnit], skills_by_id: Dict[str, WotvSkill], jobs_by_id: Dict[str, WotvJob]):
-        self.units_by_id = units_by_id
+    def __init__(self,
+        all_units_by_id: Dict[str, WotvUnit],
+        playable_units_by_id: Dict[str, WotvUnit],
+        skills_by_id: Dict[str, WotvSkill],
+        jobs_by_id: Dict[str, WotvJob]):
+        self.all_units_by_id = all_units_by_id
+        self.playable_units_by_id = playable_units_by_id
         self.skills_by_id = skills_by_id
         self.jobs_by_id = jobs_by_id
 
@@ -125,6 +130,7 @@ class DataFiles:
             if 'mstskl' in json_entry:
                 for skill_id in json_entry['mstskl']: # Master abilities
                     temp_unit.master_abilities.append(result_skills_by_id[skill_id])
+                    temp_unit.is_playable = True # Only playable characters appear to have master skills
             if 'elem' in json_entry:
                 for element_id in json_entry['elem']:
                     temp_unit.elements.append(DataFiles.ELEMENT_NAME_BY_ID[element_id])
@@ -142,7 +148,6 @@ class DataFiles:
                 temp_unit: WotvUnit = result_all_units_by_id[json_entry['iname']]
                 temp_board = WotvAbilityBoard()
                 temp_unit.ability_board = temp_board
-                temp_unit.is_playable = True
                 board_count += 1
                 for panel_entry in json_entry['panels']:
                     skill_count += 1
@@ -153,13 +158,18 @@ class DataFiles:
                     if 'need_level' in panel_entry:
                         temp_board_skill.unlocked_by_job_level = panel_entry['need_level']
                     temp_board.all_skills[temp_board_skill.skill_id] = temp_board_skill
-        print('Discovered and bound ' + str(board_count) + ' ability boards for playable units, containing a total of ' + str(skill_count) + ' skills.')
-        return DataFiles(result_all_units_by_id, result_skills_by_id, result_jobs_by_id)
+
+        result_playable_units_by_id: Dict[str, WotvUnit] = {k:v for k, v in result_all_units_by_id.items() if v.is_playable}
+        print('It looks like there are ' + str(len(result_playable_units_by_id)) + ' playable units: ')
+        playable_unit_names = sorted([unit.name for unit in result_playable_units_by_id.values()])
+        print('Playable unit names (for sanity checking): ' + str(playable_unit_names))
+        print('Discovered and bound ' + str(board_count) + ' ability boards for units, containing a total of ' + str(skill_count) + ' skills.')
+        return DataFiles(result_all_units_by_id, result_playable_units_by_id, result_skills_by_id, result_jobs_by_id)
 
     def sanityCheckCounts(self, min_unit_count: int = MIN_UNIT_COUNT, min_skill_count: int = MIN_SKILL_COUNT, min_job_count: int = MIN_JOB_COUNT):
         """Check that the counts of units, skills, and jobs (etc) in the data dump are sane."""
         # Pick some values near the current maxima as of 2020-12-05, assuming these will only ever increase
-        num_units = len(self.units_by_id)
+        num_units = len(self.all_units_by_id)
         if num_units < min_unit_count: # Only include playable units, in case the other stuff gets moved off elsewhere (seems likely, eventually)
             raise Exception('Too few units in data dump for it to be sane: ' + str(num_units) + "<" + str(min_unit_count))
         num_skills = len(self.skills_by_id)
@@ -171,9 +181,12 @@ class DataFiles:
 
     def sanityCheckMont(self):
         """Check that Mont is present and that he has a sane set of jobs, Killer Blade, etc."""
-        mont = self.units_by_id['UN_LW_P_MONT']
+        mont = self.all_units_by_id['UN_LW_P_MONT']
         if mont is None:
-            raise Exception('Cannot find Mont (UN_LW_P_MONT)!')
+            raise Exception('Cannot find Mont (UN_LW_P_MONT) in all unts!')
+        mont = self.playable_units_by_id['UN_LW_P_MONT']
+        if mont is None:
+            raise Exception('Cannot find Mont (UN_LW_P_MONT) in playable units!')
         print('Mont unit data is present.')
         if mont.name != 'Mont Leonis':
             raise Exception('Mont is not named Mont Leonis: ' + mont.name + '!')

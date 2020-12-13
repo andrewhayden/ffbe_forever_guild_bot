@@ -55,7 +55,7 @@ class DataFileSearchUtils:
         if previous_results_to_filter is not None:
             units_to_search = [entry.unit for entry in previous_results_to_filter]
         else:
-            units_to_search = data_files.units_by_id.values()
+            units_to_search = data_files.playable_units_by_id.values()
         for unit in units_to_search:
             for ability_board_skill in unit.ability_board.all_skills.values():
                 if ability_board_skill.skill_id in data_files.skills_by_id:
@@ -96,7 +96,7 @@ class DataFileSearchUtils:
         if previous_results_to_filter is not None:
             units_to_search = [entry.unit for entry in previous_results_to_filter]
         else:
-            units_to_search = data_files.units_by_id.values()
+            units_to_search = data_files.playable_units_by_id.values()
         for unit in units_to_search:
             for ability_board_skill in unit.ability_board.all_skills.values():
                 if ability_board_skill.skill_id in data_files.skills_by_id:
@@ -137,7 +137,7 @@ class DataFileSearchUtils:
         if previous_results_to_filter is not None:
             units_to_search = [entry.unit for entry in previous_results_to_filter]
         else:
-            units_to_search = data_files.units_by_id.values()
+            units_to_search = data_files.playable_units_by_id.values()
         for unit in units_to_search:
             for job in unit.job_list:
                 if (exact_match_only and search_text in job.name.lower()) or (
@@ -162,7 +162,7 @@ class DataFileSearchUtils:
         if previous_results_to_filter is not None:
             units_to_search = [entry.unit for entry in previous_results_to_filter]
         else:
-            units_to_search = data_files.units_by_id.values()
+            units_to_search = data_files.playable_units_by_id.values()
         for unit in units_to_search:
             if unit.rarity and unit.rarity.lower() == rarity:
                 result = UnitSearchResult()
@@ -185,7 +185,7 @@ class DataFileSearchUtils:
         if previous_results_to_filter is not None:
             units_to_search = [entry.unit for entry in previous_results_to_filter]
         else:
-            units_to_search = data_files.units_by_id.values()
+            units_to_search = data_files.playable_units_by_id.values()
         for unit in units_to_search:
             for unit_element in unit.elements:
                 if unit_element.lower() == element:
@@ -203,7 +203,7 @@ class DataFileSearchUtils:
         search_type = search_type.strip().lower()
         if search_type == 'all':
             results: [UnitSearchResult] = []
-            for unit in data_files.units_by_id.values():
+            for unit in data_files.playable_units_by_id.values():
                 one_result = UnitSearchResult()
                 one_result.unit = unit
                 results.append(one_result)

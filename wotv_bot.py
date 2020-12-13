@@ -405,6 +405,7 @@ class WotvBot:
 
     @staticmethod
     def rarityAndElementParenthetical(unit: WotvUnit) -> str:
+        """Generate a parenthetical string with the unit's rarity and element(s)"""
         text = '(' + str(unit.rarity) + ' rarity, '
         if not unit.elements:
             return text + 'no element)'
@@ -418,7 +419,8 @@ class WotvBot:
         return text + ')'
 
     def prettyPrintUnitSkillSearchResult(self, result: UnitSkillSearchResult):
-        """Print a useful, human-readable description of the skill match including the unit name, element, rarity, the skill name, and how the skill is unlocked."""
+        """Print a useful, human-readable description of the skill match including the unit name, element, rarity, the skill name,
+           and how the skill is unlocked."""
         if result.is_master_ability:
             return 'Master ability for ' + result.unit.name + ' ' + WotvBot.rarityAndElementParenthetical(result.unit) + ': ' + result.skill.description
         text = 'Skill "' + result.skill.name + '" learned by ' + result.unit.name
@@ -444,6 +446,7 @@ class WotvBot:
 
     @staticmethod
     def getExtraCommandLines(context: CommandContextInfo):
+        """Extract all extra non-empty lines from a command and return them as a list."""
         lines = context.original_message.content.splitlines()
         extra_lines = []
         if len(lines) > 1:
