@@ -864,6 +864,75 @@ class WotvBotIntegrationTests:
         matches = DataFileSearchUtils.findUnitWithRarity(data_files, 'light', matches)
         assert not matches # should not find Engelbert, because he is no longer in the list
 
+    async def testDataFileSearchUtils_RichUnitSearch(self): # async for convenience of standalone test runner, which expects a coroutine
+        """Test searching for a unit with rich syntax"""
+        data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
+        # Base case: No refinements. Also test that search type result is appropriate for "job" base search.
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin')
+        assert len(matches) == 2
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[1].unit.name == 'Engelbert'
+        assert matches[0].job.name == 'Paladin'
+        assert matches[1].job.name == 'Paladin'
+
+        # Test that search type result is appropriate for "skill" base search.
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'skill-name', 'Killer Blade')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].is_master_ability == False
+        assert matches[0].board_skill.skill_id is not None
+
+        # Base case: No refinements, search ALL units. Should just be unit search results, no skill or job data.
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'all', None)
+        assert len(matches) == 2
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[1].unit.name == 'Engelbert'
+        assert not hasattr(matches[0], 'job')
+        assert not hasattr(matches[0], 'is_master_ability')
+        assert not hasattr(matches[1], 'job')
+        assert not hasattr(matches[1], 'is_master_ability')
+
+        # Refine to only units with light (Engelbert)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['element light'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units without light (Mont)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not element light'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units with skill name "Killer Blade" (Mont)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['skill-name Killer Blade'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units without skill name "Killer Blade" (Engelbert)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not skill-name Killer Blade'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units with skill description "Man Eater" (Mont)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['skill-desc "Man eat"'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units without skill description "Man Eater" (Engelbert)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not skill-desc eaTer'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units with rarity MR (Mont)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['rarity MR'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Paladin'
+        # Refine to only units without rarity MR (Engelbert)
+        matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not rarity MR'])
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].job.name == 'Paladin'
+
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
         wotv_bot = WotvBot(self.wotv_bot_config)
@@ -959,6 +1028,8 @@ class WotvBotIntegrationTests:
         await self.testDataFileSearchUtils_findUnitWithRarity()
         print('>>> Test: testDataFileSearchUtils_findUnitWithElement')
         await self.testDataFileSearchUtils_findUnitWithElement()
+        print('>>> Test: testDataFileSearchUtils_RichUnitSearch')
+        await self.testDataFileSearchUtils_RichUnitSearch
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""

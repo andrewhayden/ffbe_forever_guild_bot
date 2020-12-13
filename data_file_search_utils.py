@@ -1,9 +1,19 @@
 """Tools for searching and filtering within the data files."""
+import re
+import shlex
 from dataclasses import dataclass
 
 from common_search_utils import CommonSearchUtils
 from data_files import DataFiles
 from data_file_core_classes import WotvUnit, WotvBoardSkill, WotvSkill, WotvJob
+from wotv_bot_common import ExposableException
+
+@dataclass
+class Refinement:
+    """One refinement."""
+    is_not: bool = False # True if this is a "not" refinement
+    search_type: str = None
+    search_text: str = None
 
 @dataclass
 class UnitSearchResult:
@@ -182,4 +192,102 @@ class DataFileSearchUtils:
                     result = UnitSearchResult()
                     result.unit = unit
                     results.append(result)
+        return results
+
+    @staticmethod
+    def __invokeTypedSearch(
+        data_files: DataFiles,
+        search_type: str = None,
+        search_text: str = None,
+        previous_results_to_filter: [UnitSearchResult] = None) -> [UnitSearchResult]:
+        search_type = search_type.strip().lower()
+        if search_type == 'all':
+            results: [UnitSearchResult] = []
+            for unit in data_files.units_by_id.values():
+                one_result = UnitSearchResult()
+                one_result.unit = unit
+                results.append(one_result)
+            return results
+        if search_type == 'skill-name':
+            return DataFileSearchUtils.findUnitWithSkillName(data_files, search_text, previous_results_to_filter)
+        if search_type == 'skill-desc' or search_type == 'skill-description':
+            return DataFileSearchUtils.findUnitWithSkillDescription(data_files, search_text, previous_results_to_filter)
+        if search_type == 'job' or search_type == 'job-name':
+            return DataFileSearchUtils.findUnitWithJobName(data_files, search_text, previous_results_to_filter)
+        if search_type == 'rarity':
+            return DataFileSearchUtils.findUnitWithRarity(data_files, search_text, previous_results_to_filter)
+        if search_type == 'element':
+            return DataFileSearchUtils.findUnitWithElement(data_files, search_text, previous_results_to_filter)
+        raise ExposableException('Unsupported rich unit search type or refinement: "' + search_type + '". For help using search, use !help')
+
+    @staticmethod
+    def __retainMatching(from_results: [UnitSearchResult], retain_matching_units: [UnitSearchResult]) -> [UnitSearchResult]:
+        """From a specified collection from_results, retain only those that match the units in retain_matching_units."""
+        retained_ids = set([one_result.unit.unique_id for one_result in retain_matching_units])
+        return [one_result for one_result in from_results if one_result.unit.unique_id in retained_ids]
+
+    @staticmethod
+    def __retainNotMatching(from_results: [UnitSearchResult], retain_matching_units: [UnitSearchResult]) -> [UnitSearchResult]:
+        """From a specified collection from_results, retain only those that DO NOT match the units in retain_matching_units."""
+        retained_ids = set([one_result.unit.unique_id for one_result in retain_matching_units])
+        return [one_result for one_result in from_results if one_result.unit.unique_id not in retained_ids]
+
+    @staticmethod
+    def __extractRefinement(line: str):
+        # Convert the line into a series of string tokens. Quoted strings end up problematic, as other code in this project expects
+        # them to be quoted with double quotes but shlex.quote uses single-quotes only. So after splitting, find any string that
+        # still contains whitespace and double-quote it - because the user must have quoted it to begin with.
+        tokens = shlex.split(line)
+        re_quoted: [str] = []
+        for token in tokens:
+            if re.search(r"\s", token):
+                token = '"' + token + '"'
+            else:
+                token = token.lower()
+            re_quoted.append(token)
+        tokens = re_quoted
+        result = Refinement()
+        if tokens[0] == 'not':
+            result.is_not = True
+            tokens = tokens[1:]
+        result.search_type = tokens[0]
+        if len(tokens) > 1:
+            result.search_text = tokens[1]
+        return result
+
+    @staticmethod
+    def richUnitSearch(
+        data_files: DataFiles,
+        search_type: str = None,
+        search_text: str = None,
+        refinements: [str] = None) -> [UnitSearchResult]:
+        """Perform a rich search starting with a search of the specified type and text, and refining (restricting) results.
+
+        Supported types are as follows:
+        * all: start with all units (unrestricted search) and refine, returning a list of UnitSearchResult; search_text must not be None.
+        * skill-name: search units by skill name, returning a list of UnitSkillSearchResult; search_text as in findUnitWithSkillName().
+        * skill-desc[ription]: search units by skill description, returning a list of UnitSkillSearchResult; search_text as in findUnitWithSkillDescription().
+        * job[-name]: search units by job name, returning a list of UnitJobSearchResult; search_text as in findUnitWithJobName().
+        * rarity: search units by rarity, returning a list of UnitSearchResult; search_text as in findUnitWithRarity().
+        * element: search units by element, returning a list of UnitSearchResult; search_text as in findUnitWithElement().
+
+        Each refinement is expected to be a line of the form <refinement_type>[<whitespace><search_text>]. The refinement type may be preceded by
+        the word "not" to invert the meaning, or "except" meaning to take everything except the result.
+        * search_type = 'rarity', search_text='ur': bootstrap the search as a rarity search for only UR units.
+        * refinements[0] = 'job-name paladin': retain only UR units who have the job paladin
+        * refinements[1] = 'except element earth': retain only units that are not earth element
+        * refinements[2] = 'not skill-name Killer Blade': retain only units that do not have a skill whose name matches "Killer Blade".
+        """
+        # Begin with the initial search.
+        results = DataFileSearchUtils.__invokeTypedSearch(data_files, search_type, search_text, None)
+        if refinements is None:
+            return results
+
+        for refinement_line in refinements:
+            refinement_command = DataFileSearchUtils.__extractRefinement(refinement_line)
+            refinement_results = DataFileSearchUtils.__invokeTypedSearch(data_files, refinement_command.search_type, refinement_command.search_text, results)
+            if refinement_command.is_not:
+                results = DataFileSearchUtils.__retainNotMatching(results, refinement_results)
+            else:
+                results = DataFileSearchUtils.__retainMatching(results, refinement_results)
         return results
