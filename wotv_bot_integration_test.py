@@ -1,4 +1,5 @@
 """Integration tests for the FFBEForever Guild Bot"""
+# pylint: disable=too-many-lines
 from __future__ import annotations
 import asyncio
 import json
@@ -839,6 +840,30 @@ class WotvBotIntegrationTests:
         matches = DataFileSearchUtils.findUnitWithRarity(data_files, 'ur', matches)
         assert not matches # should not find Engelbert, because he is no longer in the list
 
+    async def testDataFileSearchUtils_findUnitWithElement(self): # async for convenience of standalone test runner, which expects a coroutine
+        """Test searching for a unit with a specific element"""
+        data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
+        matches = DataFileSearchUtils.findUnitWithElement(data_files, 'eaRth')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        matches = DataFileSearchUtils.findUnitWithElement(data_files, 'LigHt')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        # Test de-quoting exact-match string (no-op functionality since fuzzy-match is not supported, but should not cause problems)
+        matches = DataFileSearchUtils.findUnitWithElement(data_files, '"light"')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        # Test junk element
+        matches = DataFileSearchUtils.findUnitWithElement(data_files, 'xx')
+        assert not matches
+
+        # Test using an explicitly-passed list (as if a filtered list of units had been provided)
+        matches = DataFileSearchUtils.findUnitWithElement(data_files, 'earth')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        matches = DataFileSearchUtils.findUnitWithRarity(data_files, 'light', matches)
+        assert not matches # should not find Engelbert, because he is no longer in the list
+
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
         wotv_bot = WotvBot(self.wotv_bot_config)
@@ -932,6 +957,8 @@ class WotvBotIntegrationTests:
         await self.testDataFileSearchUtils_findUnitWithJobName()
         print('>>> Test: testDataFileSearchUtils_findUnitWithRarity')
         await self.testDataFileSearchUtils_findUnitWithRarity()
+        print('>>> Test: testDataFileSearchUtils_findUnitWithElement')
+        await self.testDataFileSearchUtils_findUnitWithElement()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""

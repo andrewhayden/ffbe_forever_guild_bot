@@ -159,3 +159,27 @@ class DataFileSearchUtils:
                 result.unit = unit
                 results.append(result)
         return results
+
+    @staticmethod
+    def findUnitWithElement(data_files: DataFiles, element: str,
+        previous_results_to_filter: [UnitSearchResult] = None) -> [UnitJobSearchResult]:
+        """Find all units with the specified element, which must be one of none, fire, ice, wind, earth, lightning, water, light or dark (case insensitive).
+
+        For units that have multiple elements, the unit is considered matching if any of those elements is the specified element.
+        If previous_results_to_filter is a list of UnitSearchResult objects, searches only within those results. Otherwise searches all units."""
+        if element.startswith('"') and element.endswith('"'): # Strip, but ignore, any exact-match semantics
+            element = (element[1:-1])
+        element = element.lower()
+        results = []
+        units_to_search = None
+        if previous_results_to_filter is not None:
+            units_to_search = [entry.unit for entry in previous_results_to_filter]
+        else:
+            units_to_search = data_files.units_by_id.values()
+        for unit in units_to_search:
+            for unit_element in unit.elements:
+                if unit_element.lower() == element:
+                    result = UnitSearchResult()
+                    result.unit = unit
+                    results.append(result)
+        return results
