@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from common_search_utils import CommonSearchUtils
 from data_files import DataFiles
-from data_file_core_classes import WotvUnit, WotvBoardSkill, WotvSkill
+from data_file_core_classes import WotvUnit, WotvBoardSkill, WotvSkill, WotvJob
 
 @dataclass
 class UnitSearchResult:
@@ -20,6 +20,11 @@ class UnitSkillSearchResult(UnitSearchResult):
     is_master_ability: bool = False
     board_skill: WotvBoardSkill = None
     skill: WotvSkill = None
+
+@dataclass
+class UnitJobSearchResult(UnitSearchResult):
+    """A unit job search result containing a unit and a job."""
+    job: WotvJob = None
 
 class DataFileSearchUtils:
     """Tools for searching and filtering within the data files."""
@@ -103,4 +108,32 @@ class DataFileSearchUtils:
                         one_result.is_master_ability = True
                         one_result.skill = skill
                         results.append(one_result)
+        return results
+
+    @staticmethod
+    def findUnitWithJobName(data_files: DataFiles, search_text: str,
+        previous_results_to_filter: [UnitSearchResult] = None) -> [UnitJobSearchResult]:
+        """Find all units with a job whose name matches the specified search text.
+
+        If the search text is quoted, only units with job names containing an exact match will be returned. Otherwise a fuzzy match is performed.
+        If previous_results_to_filter is a list of UnitSearchResult objects, searches only within those results. Otherwise searches all units."""
+        exact_match_only = search_text.startswith('"') and search_text.endswith('"')
+        if exact_match_only:
+            search_text = (search_text[1:-1])
+        search_text = search_text.lower()
+
+        results = []
+        units_to_search = None
+        if previous_results_to_filter is not None:
+            units_to_search = [entry.unit for entry in previous_results_to_filter]
+        else:
+            units_to_search = data_files.units_by_id.values()
+        for unit in units_to_search:
+            for job in unit.job_list:
+                if (exact_match_only and search_text in job.name.lower()) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(job.name.lower(), search_text)):
+                    one_result = UnitJobSearchResult()
+                    one_result.unit = unit
+                    one_result.job = job
+                    results.append(one_result)
         return results

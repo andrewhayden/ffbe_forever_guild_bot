@@ -775,6 +775,43 @@ class WotvBotIntegrationTests:
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
 
+    async def testDataFileSearchUtils_findUnitWithJobName(self): # async for convenience of standalone test runner, which expects a coroutine
+        """Test searching for a unit with a specific job name"""
+        data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
+        # Test exact match
+        matches = DataFileSearchUtils.findUnitWithJobName(data_files, '"Paladin"')
+        assert len(matches) == 2
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Paladin'
+        assert matches[1].unit.name == 'Engelbert'
+        assert matches[1].job.name == 'Paladin'
+        matches = DataFileSearchUtils.findUnitWithJobName(data_files, '"Lord"')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Lord'
+
+        # Test fuzzy match
+        matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'ladin')
+        assert len(matches) == 2
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].job.name == 'Paladin'
+        assert matches[1].unit.name == 'Engelbert'
+        assert matches[1].job.name == 'Paladin'
+        matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'onk')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].job.name == 'Monk'
+
+        # Test using an explicitly-passed list (as if a filtered list of units had been provided)
+        matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'ladin')
+        assert len(matches) == 2
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[1].unit.name == 'Engelbert'
+        matches = matches[1:2] # Just Engelbert
+        matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'ladin', matches)
+        assert len(matches) == 1
+        assert matches[0].job.name == 'Paladin'
+
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
         wotv_bot = WotvBot(self.wotv_bot_config)
@@ -864,6 +901,8 @@ class WotvBotIntegrationTests:
         await self.testCommand_SkillsByName()
         print('>>> Test: testCommand_SkillsByDescription')
         await self.testCommand_SkillsByDescription()
+        print('>>> Test: testDataFileSearchUtils_findUnitWithJobName')
+        await self.testDataFileSearchUtils_findUnitWithJobName()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
