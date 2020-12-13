@@ -120,70 +120,73 @@ class WotvBot:
             self.wotv_bot_config.access_control_spreadsheet_id,
             self.wotv_bot_config.spreadsheet_app)
 
-        match = WotvBotConstants.RES_FETCH_SELF_PATTERN.match(message.content.lower())
+        # To support multi-line commands, we only match the command itself against the first line.
+        first_line_lower = message.content.splitlines()[0].lower()
+
+        match = WotvBotConstants.RES_FETCH_SELF_PATTERN.match(first_line_lower)
         if match:
             return self.handleTargetedResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
-        match = WotvBotConstants.RES_LIST_SELF_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.RES_LIST_SELF_PATTERN.match(first_line_lower)
         if match:
             return self.handleGeneralResonanceLookupForSelf(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
-        match = WotvBotConstants.RES_FETCH_OTHER_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.RES_FETCH_OTHER_PATTERN.match(first_line_lower)
         if match:
             return self.handleTargetedResonanceLookupForOtherUser(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
-        match = WotvBotConstants.RES_SET_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.RES_SET_PATTERN.match(first_line_lower)
         if match:
             return self.handleResonanceSet(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
 
-        if WotvBotConstants.VISION_CARD_SET_PATTERN.match(message.content.lower()):
+        if WotvBotConstants.VISION_CARD_SET_PATTERN.match(first_line_lower):
             return await self.handleVisionCardSet(context.shallowCopy().withVisionCardManager(vision_card_manager))
 
-        match = WotvBotConstants.VISION_CARD_FETCH_BY_NAME_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.VISION_CARD_FETCH_BY_NAME_PATTERN.match(first_line_lower)
         if match:
             return await self.handleVisionCardFetchByName(context.shallowCopy().withMatch(match).withVisionCardManager(vision_card_manager))
 
-        match = WotvBotConstants.VISION_CARD_ABILITY_SEARCH.match(message.content.lower())
+        match = WotvBotConstants.VISION_CARD_ABILITY_SEARCH.match(first_line_lower)
         if match:
             return await self.handleVisionCardAbilitySearch(context.shallowCopy().withMatch(match).withVisionCardManager(vision_card_manager))
 
-        if WotvBotConstants.VISION_CARD_DEBUG_PATTERN.match(message.content.lower()):
+        if WotvBotConstants.VISION_CARD_DEBUG_PATTERN.match(first_line_lower):
             return await self.handleVisionCardDebug(context.shallowCopy().withVisionCardManager(vision_card_manager))
 
-        match = WotvBotConstants.FIND_SKILLS_BY_NAME_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.FIND_SKILLS_BY_NAME_PATTERN.match(first_line_lower)
         if match:
             return await self.handleFindSkillsByName(context.shallowCopy().withMatch(match))
 
-        match = WotvBotConstants.FIND_SKILLS_BY_DESCRIPTION_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.FIND_SKILLS_BY_DESCRIPTION_PATTERN.match(first_line_lower)
         if match:
             return await self.handleFindSkillsByDescription(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
-        if message.content.lower().startswith('!whoami'):
+        if first_line_lower.startswith('!whoami'):
             return self.handleWhoAmI(context)
 
         # Hidden utility command to look up the snowflake ID of a member. This isn't secret or insecure, but it's also not common, so it isn't listed.
-        match = WotvBotConstants.WHOIS_PATTERN.match(message.content.lower())
+        match = WotvBotConstants.WHOIS_PATTERN.match(first_line_lower)
         if match:
             return await self.handleWhoIs(context.shallowCopy().withMatch(match))
 
-        if WotvBotConstants.ADMIN_ADD_ESPER_PATTERN.match(message.content) or WotvBotConstants.SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(message.content):
+        if WotvBotConstants.ADMIN_ADD_ESPER_PATTERN.match(first_line_lower) or WotvBotConstants.SANDBOX_ADMIN_ADD_ESPER_PATTERN.match(message.content):
             return self.handleAdminAddEsper(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
 
-        if WotvBotConstants.ADMIN_ADD_UNIT_PATTERN.match(message.content) or WotvBotConstants.SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content):
+        if WotvBotConstants.ADMIN_ADD_UNIT_PATTERN.match(first_line_lower) or WotvBotConstants.SANDBOX_ADMIN_ADD_UNIT_PATTERN.match(message.content):
             return self.handleAdminAddUnit(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager))
 
-        if WotvBotConstants.ADMIN_ADD_VC_PATTERN.match(message.content):
+        if WotvBotConstants.ADMIN_ADD_VC_PATTERN.match(first_line_lower):
             return self.handleAdminAddVisionCard(context.shallowCopy().withVisionCardManager(vision_card_manager))
 
-        if WotvBotConstants.ADMIN_ADD_USER_PATTERN.match(message.content):
+        if WotvBotConstants.ADMIN_ADD_USER_PATTERN.match(first_line_lower):
             return self.handleAdminAddUser(context.shallowCopy().withEsperResonanceManager(esper_resonance_manager).withVisionCardManager(vision_card_manager))
 
-        if message.content.lower().startswith('!resonance'):
+        if first_line_lower.startswith('!resonance'):
             responseText = '<@{0}>: Invalid !resonance command. Use !help for more information.'.format(from_id)
             return (responseText, None)
 
-        if message.content.lower().startswith('!help'):
+        if first_line_lower.startswith('!help'):
             responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id, self.wotv_bot_config.vision_card_spreadsheet_id)
             return (responseText, None)
 

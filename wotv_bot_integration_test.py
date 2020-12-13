@@ -879,7 +879,7 @@ class WotvBotIntegrationTests:
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'skill-name', 'Killer Blade')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
-        assert matches[0].is_master_ability == False
+        assert not matches[0].is_master_ability
         assert matches[0].board_skill.skill_id is not None
 
         # Base case: No refinements, search ALL units. Should just be unit search results, no skill or job data.
@@ -1029,7 +1029,7 @@ class WotvBotIntegrationTests:
         print('>>> Test: testDataFileSearchUtils_findUnitWithElement')
         await self.testDataFileSearchUtils_findUnitWithElement()
         print('>>> Test: testDataFileSearchUtils_RichUnitSearch')
-        await self.testDataFileSearchUtils_RichUnitSearch
+        await self.testDataFileSearchUtils_RichUnitSearch()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
