@@ -686,7 +686,7 @@ class WotvBotIntegrationTests:
         """Test searching for a unit with a skill name"""
         data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
         # Test exact match with a Board Skill
-        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Killer Blade"')
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Killer Bl"')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Killer Blade'
@@ -694,7 +694,7 @@ class WotvBotIntegrationTests:
         assert matches[0].board_skill.unlocked_by_job_level == 7
 
         # Test exact match with a Master Ability
-        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Master Ability"')
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Master A"')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Master Ability'
@@ -702,7 +702,7 @@ class WotvBotIntegrationTests:
         assert matches[0].board_skill is None
 
         # Test fuzzy match with a Board Skill
-        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'ler LAD')
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'LAD ler')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
 
@@ -718,7 +718,7 @@ class WotvBotIntegrationTests:
         """Test searching for a unit with a skill description"""
         data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
         # Test exact match with a Board Skill
-        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"Deals Dmg (L) to target & bestows Man Eater."')
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"to target & bestows"')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Killer Blade'
@@ -727,7 +727,7 @@ class WotvBotIntegrationTests:
         assert matches[0].board_skill.unlocked_by_job_level == 7
 
         # Test exact match with Master Ability skill
-        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"DEF +15, Jump +1"')
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"+15, Jump +1"')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Master Ability'
@@ -761,7 +761,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for Killer Blade
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Killer Blade"'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Killer Bla"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test fuzzy match for master ability
@@ -771,7 +771,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for master ability
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Master Ability"'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "ster Ability"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for nonexistent skill
@@ -805,7 +805,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for master ability
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc "DEF +15, Jump +1"'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc "+15, Jump +1"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for nonexistent skill
@@ -826,10 +826,8 @@ class WotvBotIntegrationTests:
             time.sleep(1)
         print('\n>>> Google API cooldown pause completed, moving on.')
 
-    async def runAllTests(self):
-        """Run all tests in the integration test suite."""
-
-        # Data dump skills don't require any network access and run very fast, do them first.
+    async def runDataFileTests(self):
+        """Run only the data file tests. These are all local-execution only."""
         print('>>> Test: testDataFiles_ParseDataDump')
         self.testDataFiles_ParseDataDump()
         print('>>> Test: testDataFileSearchUtils_findUnitWithSkillName')
@@ -841,13 +839,23 @@ class WotvBotIntegrationTests:
         print('>>> Test: testCommand_SkillsByDescription')
         self.testCommand_SkillsByDescription()
 
-        # Core tests
+    async def runLocalTests(self):
+        """Run only tests that do not require any network access. AKA fast tests :)"""
+        await self.runDataFileTests()
         print('>>> Test: testCommand_Help')
         await self.testCommand_Help()
-
         print('>>> Test: testVisionCardOcrUtils_ExtractVisionCardFromScreenshot')
         await self.testVisionCardOcrUtils_ExtractVisionCardFromScreenshot()
+        print('>>> Test: testCommand_WhoAmI')
+        await self.testCommand_WhoAmI() # Doesn't call remote APIs, no cooldown required.
 
+    async def runAllTests(self):
+        """Run all tests in the integration test suite."""
+        await self.runLocalTests()
+        await self.runNetworkEnabledTests()
+
+    async def runNetworkEnabledTests(self):
+        """Run tests that require network access."""
         print('>>> Test: testAdminUtils_AddUser')
         await self.testAdminUtils_AddUser()
         WotvBotIntegrationTests.cooldown()
@@ -855,10 +863,6 @@ class WotvBotIntegrationTests:
         print('>>> Test: testResonanceManager_AddUser')
         await self.testResonanceManager_AddUser()
         WotvBotIntegrationTests.cooldown()
-
-        # Bot tests using simulated Discord messages. Highest-level integration tests.
-        print('>>> Test: testCommand_WhoAmI')
-        await self.testCommand_WhoAmI() # Doesn't call remote APIs, no cooldown required.
 
         print('>>> Test: testCommand_AdminAddEsper_AsAdmin')
         await self.testCommand_AdminAddEsper_AsAdmin()

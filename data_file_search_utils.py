@@ -23,7 +23,7 @@ class DataFileSearchUtils:
     def findUnitWithSkillName(data_files: DataFiles, search_text: str) -> [UnitSkillSearchResult]:
         """Find all units with a skill whose name matches the specified search text.
 
-        If the search text is quoted, only exact matches will be returned. Otherwise a fuzzy match is performed."""
+        If the search text is quoted, only units with names containing an exact match will be returned. Otherwise a fuzzy match is performed."""
         exact_match_only = search_text.startswith('"') and search_text.endswith('"')
         if exact_match_only:
             search_text = (search_text[1:-1])
@@ -34,7 +34,7 @@ class DataFileSearchUtils:
             for ability_board_skill in unit.ability_board.all_skills.values():
                 if ability_board_skill.skill_id in data_files.skills_by_id:
                     skill = data_files.skills_by_id[ability_board_skill.skill_id]
-                    if (exact_match_only and skill.name.lower() == search_text) or (
+                    if (exact_match_only and search_text in skill.name.lower()) or (
                         (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
                         one_result = UnitSkillSearchResult()
                         one_result.unit = unit
@@ -44,7 +44,7 @@ class DataFileSearchUtils:
             for master_skill in unit.master_abilities:
                 if master_skill.unique_id in data_files.skills_by_id:
                     skill = data_files.skills_by_id[master_skill.unique_id]
-                    if (exact_match_only and skill.name.lower() == search_text) or (
+                    if (exact_match_only and search_text in skill.name.lower()) or (
                         (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
                         one_result = UnitSkillSearchResult()
                         one_result.unit = unit
@@ -57,7 +57,7 @@ class DataFileSearchUtils:
     def findUnitWithSkillDescription(data_files: DataFiles, search_text: str) -> [UnitSkillSearchResult]:
         """Find all units with a skill whose description matches the specified search text.
 
-        If the search text is quoted, only exact matches will be returned. Otherwise a fuzzy match is performed."""
+        If the search text is quoted, only units with skill descriptions containing exact matches will be returned. Otherwise a fuzzy match is performed."""
         exact_match_only = search_text.startswith('"') and search_text.endswith('"')
         if exact_match_only:
             search_text = (search_text[1:-1])
@@ -68,7 +68,7 @@ class DataFileSearchUtils:
             for ability_board_skill in unit.ability_board.all_skills.values():
                 if ability_board_skill.skill_id in data_files.skills_by_id:
                     skill = data_files.skills_by_id[ability_board_skill.skill_id]
-                    if (exact_match_only and skill.description.lower() == search_text) or (
+                    if (exact_match_only and search_text in skill.description.lower()) or (
                         (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
                         one_result = UnitSkillSearchResult()
                         one_result.unit = unit
@@ -78,7 +78,7 @@ class DataFileSearchUtils:
             for master_skill in unit.master_abilities:
                 if master_skill.unique_id in data_files.skills_by_id:
                     skill = data_files.skills_by_id[master_skill.unique_id]
-                    if (exact_match_only and skill.description.lower() == search_text) or (
+                    if (exact_match_only and search_text in skill.description.lower()) or (
                         (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
                         one_result = UnitSkillSearchResult()
                         one_result.unit = unit
