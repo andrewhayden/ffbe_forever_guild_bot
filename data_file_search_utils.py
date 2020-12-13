@@ -137,3 +137,25 @@ class DataFileSearchUtils:
                     one_result.job = job
                     results.append(one_result)
         return results
+
+    @staticmethod
+    def findUnitWithRarity(data_files: DataFiles, rarity: str,
+        previous_results_to_filter: [UnitSearchResult] = None) -> [UnitJobSearchResult]:
+        """Find all units with the specified rarity, which must be one of UR, MR, SR, R, or N (case insensitive).
+
+        If previous_results_to_filter is a list of UnitSearchResult objects, searches only within those results. Otherwise searches all units."""
+        if rarity.startswith('"') and rarity.endswith('"'): # Strip, but ignore, any exact-match semantics
+            rarity = (rarity[1:-1])
+        rarity = rarity.lower()
+        results = []
+        units_to_search = None
+        if previous_results_to_filter is not None:
+            units_to_search = [entry.unit for entry in previous_results_to_filter]
+        else:
+            units_to_search = data_files.units_by_id.values()
+        for unit in units_to_search:
+            if unit.rarity.lower() == rarity:
+                result = UnitSearchResult()
+                result.unit = unit
+                results.append(result)
+        return results
