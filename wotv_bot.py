@@ -187,11 +187,6 @@ class WotvBot:
             responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id, self.wotv_bot_config.vision_card_spreadsheet_id)
             return (responseText, None)
 
-        if message.content.lower().startswith('!admin-help'):
-            responseText = WotvBotConstants.ADMIN_HELP.format(
-                self.wotv_bot_config.esper_resonance_spreadsheet_id, self.wotv_bot_config.sandbox_esper_resonance_spreadsheet_id)
-            return (responseText, None)
-
         return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. '\
                 'Please do this via a direct message to the bot, to avoid spamming the channel.'.format(from_id), None)
 
