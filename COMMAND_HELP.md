@@ -33,7 +33,7 @@
 >     * `skill-name [search_text]` matches only units that have a skill whose name matches the specified search text. Enclose the `search_text` in double-quotes to match only the full `search_text` string, otherwise a fuzzy match is performed using all the words in `search_text`.
 >     * `skill-desc [search_text]` or `skill-description [search_text]` is exactly like `skill-name` except that the search is performed in the *description* of the skill, not the name.
 >   * For a **job search**, showing the job and the unit that matches:
->     * `job [search_text]` or `job-name [search_text]` matches onlt units that have a job whose name matches the specified search text.  Enclose the `search_text` in double-quotes to match only the full `search_text` string, otherwise a fuzzy match is performed using all the words in `search_text`.
+>     * `job [search_text]` or `job-name [search_text]` matches only units that have a job whose name matches the specified search text.  Enclose the `search_text` in double-quotes to match only the full `search_text` string, otherwise a fuzzy match is performed using all the words in `search_text`.
 > * Each additional line can contain any of the **refinement criteria** listed above, **one per line**.
 > * As each line is processed, **only units that match everything** are kept. Each line discards all units that fail to match.
 > * Any line (*except* the `!unit-search` line itself) can start with the word 'not' to flip the meaning of the refinement. For example, the meaning of `job Knight` (match only units that have the "Knight" job) can be reversed as `not job Knight` (match only units that *do not* have the "Knight" job).
