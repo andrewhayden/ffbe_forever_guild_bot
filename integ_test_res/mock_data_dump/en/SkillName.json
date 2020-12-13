@@ -7,6 +7,14 @@
       {
         "key": "SK_LW_WAR_M_4",
         "value": "Killer Blade"
+      },
+      {
+        "key": "SK_LW_PLD_S_6",
+        "value": "Sentinel"
+      },
+      {
+        "key": "SK_MA_LW_ENBT",
+        "value": "Master Ability"
       }
     ]
 }

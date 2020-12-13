@@ -24,17 +24,24 @@ class UnitSkillSearchResult(UnitSearchResult):
 class DataFileSearchUtils:
     """Tools for searching and filtering within the data files."""
     @staticmethod
-    def findUnitWithSkillName(data_files: DataFiles, search_text: str) -> [UnitSkillSearchResult]:
+    def findUnitWithSkillName(data_files: DataFiles, search_text: str,
+        previous_results_to_filter: [UnitSearchResult] = None) -> [UnitSkillSearchResult]:
         """Find all units with a skill whose name matches the specified search text.
 
-        If the search text is quoted, only units with names containing an exact match will be returned. Otherwise a fuzzy match is performed."""
+        If the search text is quoted, only units with names containing an exact match will be returned. Otherwise a fuzzy match is performed.
+        If previous_results_to_filter is a list of UnitSearchResult objects, searches only within those results. Otherwise searches all units."""
         exact_match_only = search_text.startswith('"') and search_text.endswith('"')
         if exact_match_only:
             search_text = (search_text[1:-1])
         search_text = search_text.lower()
 
         results = []
-        for unit in data_files.units_by_id.values():
+        units_to_search = None
+        if previous_results_to_filter is not None:
+            units_to_search = [entry.unit for entry in previous_results_to_filter]
+        else:
+            units_to_search = data_files.units_by_id.values()
+        for unit in units_to_search:
             for ability_board_skill in unit.ability_board.all_skills.values():
                 if ability_board_skill.skill_id in data_files.skills_by_id:
                     skill = data_files.skills_by_id[ability_board_skill.skill_id]
@@ -58,17 +65,24 @@ class DataFileSearchUtils:
         return results
 
     @staticmethod
-    def findUnitWithSkillDescription(data_files: DataFiles, search_text: str) -> [UnitSkillSearchResult]:
+    def findUnitWithSkillDescription(data_files: DataFiles, search_text: str,
+        previous_results_to_filter: [UnitSearchResult] = None) -> [UnitSkillSearchResult]:
         """Find all units with a skill whose description matches the specified search text.
 
-        If the search text is quoted, only units with skill descriptions containing exact matches will be returned. Otherwise a fuzzy match is performed."""
+        If the search text is quoted, only units with skill descriptions containing exact matches will be returned. Otherwise a fuzzy match is performed.
+        If previous_results_to_filter is a list of UnitSearchResult objects, searches only within those results. Otherwise searches all units."""
         exact_match_only = search_text.startswith('"') and search_text.endswith('"')
         if exact_match_only:
             search_text = (search_text[1:-1])
         search_text = search_text.lower()
 
         results = []
-        for unit in data_files.units_by_id.values():
+        units_to_search = None
+        if previous_results_to_filter is not None:
+            units_to_search = [entry.unit for entry in previous_results_to_filter]
+        else:
+            units_to_search = data_files.units_by_id.values()
+        for unit in units_to_search:
             for ability_board_skill in unit.ability_board.all_skills.values():
                 if ability_board_skill.skill_id in data_files.skills_by_id:
                     skill = data_files.skills_by_id[ability_board_skill.skill_id]

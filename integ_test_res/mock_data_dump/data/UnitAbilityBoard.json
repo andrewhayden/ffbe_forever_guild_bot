@@ -1,6 +1,6 @@
 {
     "items": [
-      {
+    {
         "iname": "UN_LW_P_MONT",
         "panels": [
             {
@@ -13,7 +13,35 @@
                 "unlock_value": 5,
                 "get_job": 1,
                 "need_level": 7
-            }
+            },
+            {
+                "panel_id": 21,
+                "jp": 200,
+                "panel_effect_type": 1,
+                "applicable_job": 2,
+                "value": "SK_LW_PLD_S_6",
+                "unlock_type": 4,
+                "unlock_value": 2,
+                "get_job": 2,
+                "need_level": 5
+              }
         ]
-    }]
+    },
+    {
+        "iname": "UN_LW_P_ENBT",
+        "panels": [
+            {
+                "panel_id": 17,
+                "jp": 15,
+                "panel_effect_type": 1,
+                "applicable_job": 1,
+                "value": "SK_LW_PLD_S_6",
+                "unlock_type": 4,
+                "unlock_value": 0,
+                "get_job": 1,
+                "need_level": 3
+              }
+        ]
+    }
+    ]
 }

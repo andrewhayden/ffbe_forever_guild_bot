@@ -695,11 +695,15 @@ class WotvBotIntegrationTests:
 
         # Test exact match with a Master Ability
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Master A"')
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Master Ability'
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
+        assert matches[1].unit.name == 'Engelbert'
+        assert matches[1].skill.name == 'Master Ability'
+        assert matches[1].is_master_ability is True
+        assert matches[1].board_skill is None
 
         # Test fuzzy match with a Board Skill
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'LAD ler')
@@ -708,11 +712,18 @@ class WotvBotIntegrationTests:
 
         # Test fuzzy match with a Master Ability
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'MaStEr')
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[1].unit.name == 'Engelbert'
+
+        # Test using an explicitly-passed list (as if a filtered list of units had been provided)
+        matches = matches[1:2] # Just Engelbert
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'MaStEr', matches)
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].skill.name == 'Master Ability'
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
-        assert matches[0].skill.name == 'Master Ability'
 
     async def testDataFileSearchUtils_findUnitWithSkillDescription(self): # async for convenience of standalone test runner, which expects a coroutine
         """Test searching for a unit with a skill description"""
@@ -751,6 +762,19 @@ class WotvBotIntegrationTests:
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
 
+        # Test using an explicitly-passed list (as if a filtered list of units had been provided)
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '+15') # Master ability
+        assert len(matches) == 2
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[1].unit.name == 'Engelbert'
+        matches = matches[1:2] # Just Engelbert
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '+15', matches) # Master ability
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Engelbert'
+        assert matches[0].skill.name == 'Master Ability'
+        assert matches[0].is_master_ability is True
+        assert matches[0].board_skill is None
+
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
         wotv_bot = WotvBot(self.wotv_bot_config)
@@ -766,6 +790,7 @@ class WotvBotIntegrationTests:
         assert reaction is None
         # Test fuzzy match for master ability
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Master ability for Engelbert: DEF +15\n'
         expected_text += 'Master ability for Mont Leonis: DEF +15, Jump +1'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
@@ -800,12 +825,13 @@ class WotvBotIntegrationTests:
         assert reaction is None
         # Test fuzzy match for master ability
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Master ability for Engelbert: DEF +15\n'
         expected_text += 'Master ability for Mont Leonis: DEF +15, Jump +1'
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description DEF'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-description DEF +'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for master ability
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc "+15, Jump +1"'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc "+15"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test exact match for nonexistent skill

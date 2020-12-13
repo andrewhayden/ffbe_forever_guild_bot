@@ -11,6 +11,18 @@
       {
         "key": "JB_LW_KNT_SOIL",
         "value": "Knight"
-      }
+      },
+      {
+        "key": "JB_LW_PLD_SHINE",
+        "value": "Paladin"
+      },
+      {
+        "key": "JB_LW_KNT_SHINE",
+        "value": "Knight"
+      },
+      {
+        "key": "JB_LW_MNK_SHINE",
+        "value": "Monk"
+      }    
     ]
 }

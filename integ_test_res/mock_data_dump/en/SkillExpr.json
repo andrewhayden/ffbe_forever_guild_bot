@@ -7,6 +7,14 @@
       {
         "key": "SK_LW_WAR_M_4",
         "value": "Deals Dmg (L) to target & bestows Man Eater."
+      },
+      {
+        "key": "SK_LW_PLD_S_6",
+        "value": "Significantly raises own DEF/SPR for 1 turn & significantly lowers Evasion Rate for 1 turn."
+      },
+      {
+        "key": "SK_MA_LW_ENBT",
+        "value": "DEF +15"
       }
     ]
 }
