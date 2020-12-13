@@ -1026,6 +1026,66 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
+    async def testCommand_UnitSearch(self):
+        """Test searching for units in various rich ways."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # Test skill-name fuzzy match for Killer Blade
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Skill "Killer Blade" learned by Mont Leonis (MR rarity, Earth element) with job Lord at job level 7: Deals Dmg (L) to target & bestows Man Eater.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-search skill-name Killer Bla'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test skill-description fuzzy match for master ability
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Master ability for Engelbert (UR rarity, Light element): DEF +15\n'
+        expected_text += 'Master ability for Mont Leonis (MR rarity, Earth element): DEF +15, Jump +1'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-search skill-desc DEF +'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test skill-description with refinement: Not earth
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Skill "Sentinel" learned by Engelbert (UR rarity, Light element) with job Paladin at job level 3: Significantly raises own DEF/SPR for 1 turn & significantly lowers Evasion Rate for 1 turn.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-search skill-desc Evasion Rate\n  not element earth'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test job with refinement: earth and mr rarity
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Job "Paladin" learned by Mont Leonis (MR rarity, Earth element)'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-seARch job Paladin\n  element earth\nrarity mr'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test job only
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Job "Paladin" learned by Engelbert (UR rarity, Light element)\n'
+        expected_text += 'Job "Paladin" learned by Mont Leonis (MR rarity, Earth element)'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-seARch job Paladin'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test plain unit search with refinement: earth and mr rarity
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Mont Leonis (MR rarity, Earth element)'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!Unit-search all\n  element earth\nrarity mr'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test UR rarity unit search with refinement: light
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Engelbert (UR rarity, Light element)'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-search rarIty UR\n  element light'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test UR rarity unit search only
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Engelbert (UR rarity, Light element)'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-seaRch rarity UR'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test Earth element unit search only
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Results:\n'
+        expected_text += 'Mont Leonis (MR rarity, Earth element)'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!unit-search eleMent eaRTH'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""

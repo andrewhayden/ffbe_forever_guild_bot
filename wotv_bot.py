@@ -8,7 +8,7 @@ import discord
 
 from admin_utils import AdminUtils
 from data_files import DataFiles
-from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult
+from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult, UnitJobSearchResult, UnitSearchResult
 from data_file_core_classes import WotvUnit
 from wotv_bot_constants import WotvBotConstants
 from vision_card_ocr_utils import VisionCardOcrUtils
@@ -161,6 +161,10 @@ class WotvBot:
         match = WotvBotConstants.FIND_SKILLS_BY_DESCRIPTION_PATTERN.match(first_line_lower)
         if match:
             return await self.handleFindSkillsByDescription(context.shallowCopy().withMatch(match))
+
+        match = WotvBotConstants.RICH_UNIT_SEARCH_PATTERN.match(first_line_lower)
+        if match:
+            return await self.handleRichUnitSearch(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if first_line_lower.startswith('!whoami'):
@@ -421,6 +425,21 @@ class WotvBot:
         text += ': ' + result.skill.description
         return text
 
+    def prettyPrintUnitJobSearchResult(self, result: UnitJobSearchResult):
+        """Print a useful, human-readable description of the job match including the unit name, element, rarity, and job name."""
+        text = 'Job "' + result.job.name + '" learned by ' + result.unit.name
+        text += ' ' + WotvBot.rarityAndElementParenthetical(result.unit)
+        return text
+
+    def prettyPrintUnitSearchResult(self, result: UnitSearchResult):
+        """Print a useful, human-readable description of any search result, as appropriate to the type."""
+        if hasattr(result, 'is_master_ability'):
+            return self.prettyPrintUnitSkillSearchResult(result)
+        elif hasattr(result, 'job'):
+            return self.prettyPrintUnitJobSearchResult(result)
+        else:
+            return result.unit.name + ' ' + WotvBot.rarityAndElementParenthetical(result.unit)
+
     @staticmethod
     def getExtraCommandLines(context: CommandContextInfo):
         lines = context.original_message.content.splitlines()
@@ -432,12 +451,13 @@ class WotvBot:
                     extra_lines.append(line)
         return extra_lines
 
+    # Deprecated - Use rich unit search instead, e.g. "!unit-search skill-name <search_text>"
     async def handleFindSkillsByName(self, context: CommandContextInfo) -> (str, str):
         """Handle !skills-by-name command"""
         search_text = context.command_match.group('search_text').strip()
         print('skills-by-name search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
         refinements = WotvBot.getExtraCommandLines(context)
-        if len(refinements) > 1:
+        if len(refinements) > 0:
             print('  refinements: ' + str(refinements))
         results = DataFileSearchUtils.richUnitSearch(self.wotv_bot_config.data_files, 'skill-name', search_text, refinements)
         if len(results) == 0:
@@ -450,17 +470,18 @@ class WotvBot:
             results = results[:25]
             truncated = True
         for result in results:
-            responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
+            responseText += self.prettyPrintUnitSearchResult(result) + '\n'
         if truncated:
             responseText += 'Results truncated because there were too many.'
         return (responseText.strip(), None)
 
+    # Deprecated - Use rich unit search instead, e.g. "!unit-search skill-desc <search_text>"
     async def handleFindSkillsByDescription(self, context: CommandContextInfo) -> (str, str):
         """Handle !skills-by-desc command"""
         search_text = context.command_match.group('search_text').strip()
         print('skills-by-description search from user %s#%s, for text %s' % (context.from_name, context.from_discrim, search_text))
         refinements = WotvBot.getExtraCommandLines(context)
-        if len(refinements) > 1:
+        if len(refinements) > 0:
             print('  refinements: ' + str(refinements))
         results = DataFileSearchUtils.richUnitSearch(self.wotv_bot_config.data_files, 'skill-desc', search_text, refinements)
         if len(results) == 0:
@@ -473,7 +494,33 @@ class WotvBot:
             results = results[:25]
             truncated = True
         for result in results:
-            responseText += self.prettyPrintUnitSkillSearchResult(result) + '\n'
+            responseText += self.prettyPrintUnitSearchResult(result) + '\n'
+        if truncated:
+            responseText += 'Results truncated because there were too many.'
+        return (responseText.strip(), None)
+
+    async def handleRichUnitSearch(self, context: CommandContextInfo) -> (str, str):
+        """Handle !unit-search command"""
+        search_type = context.command_match.group('search_type').strip()
+        search_text = None
+        if search_type != 'all':
+            search_text = context.command_match.group('search_text').strip()
+        print('unit search from user %s#%s, type %s, text %s' % (context.from_name, context.from_discrim, search_type, search_text))
+        refinements = WotvBot.getExtraCommandLines(context)
+        if len(refinements) > 0:
+            print('  refinements: ' + str(refinements))
+        results = DataFileSearchUtils.richUnitSearch(self.wotv_bot_config.data_files, search_type, search_text, refinements)
+        if len(results) == 0:
+            responseText = '<@{0}>: No units matched the search.'.format(context.from_id)
+            return (responseText, None)
+        responseText = '<@{0}>: Results:\n'.format(context.from_id)
+        results = sorted(results, key=lambda one_result : one_result.unit.name)
+        truncated = False
+        if len(results) > 25:
+            results = results[:25]
+            truncated = True
+        for result in results:
+            responseText += self.prettyPrintUnitSearchResult(result) + '\n'
         if truncated:
             responseText += 'Results truncated because there were too many.'
         return (responseText.strip(), None)

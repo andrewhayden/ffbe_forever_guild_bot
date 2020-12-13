@@ -36,11 +36,15 @@ class WotvBotConstants:
     # Pattern to retieve one of your own vision card's stats.
     VISION_CARD_ABILITY_SEARCH = re.compile(r'^!vc-ability (?P<search_text>.+)$')
 
-    # Pattern to retieve a list of skills by name
+    # Pattern to retieve a list of skills by name, with optional refinement criteria on separate additional lines.
     FIND_SKILLS_BY_NAME_PATTERN = re.compile(r'^!skills-by-name (?P<search_text>.+)$')
 
-    # Pattern to retieve a list of skills by description
-    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription)? (?P<search_text>.+)$')
+    # Pattern to retieve a list of skills by description, with optional refinement criteria on separate additional lines.
+    FIND_SKILLS_BY_DESCRIPTION_PATTERN = re.compile(r'^!skills-by-desc(?:ription)? (?:ription)?$')
+
+    # Pattern to retieve a list of units, with a rich search syntax and optional criteria.
+    # See detailed help for more information.
+    RICH_UNIT_SEARCH_PATTERN = re.compile(r'^!unit-search (?P<search_type>[^\s]+)\s*(?P<search_text>.+)?$')
 
     # (Hidden) Pattern for getting your own user ID out of Discord
     WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')
