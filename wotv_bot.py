@@ -9,6 +9,7 @@ import discord
 from admin_utils import AdminUtils
 from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult
+from data_file_core_classes import WotvUnit
 from wotv_bot_constants import WotvBotConstants
 from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
@@ -398,11 +399,24 @@ class WotvBot:
                 responseText += '    Bestowed Effect: ' + bestowed_effect + '\n'
         return (responseText, None)
 
+    @staticmethod
+    def rarityAndElementParenthetical(unit: WotvUnit) -> str:
+        text = '(' + unit.rarity + ' rarity, '
+        text += unit.elements[0]
+        if len(unit.elements) > 1:
+            for element in unit.elements[1:]:
+                text += '/' + element
+        text += ' element'
+        if len(unit.elements) > 1:
+            text += 's'
+        return text + ')'
+
     def prettyPrintUnitSkillSearchResult(self, result: UnitSkillSearchResult):
-        """Print a useful, human-readable description of the skill match including the unit name, the skill name, and how the skill is unlocked."""
+        """Print a useful, human-readable description of the skill match including the unit name, element, rarity, the skill name, and how the skill is unlocked."""
         if result.is_master_ability:
-            return 'Master ability for ' + result.unit.name + ': ' + result.skill.description
+            return 'Master ability for ' + result.unit.name + ' ' + WotvBot.rarityAndElementParenthetical(result.unit) + ': ' + result.skill.description
         text = 'Skill "' + result.skill.name + '" learned by ' + result.unit.name
+        text += ' ' + WotvBot.rarityAndElementParenthetical(result.unit)
         text += ' with job ' + result.board_skill.unlocked_by_job.name + ' at job level ' + str(result.board_skill.unlocked_by_job_level)
         text += ': ' + result.skill.description
         return text
