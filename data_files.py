@@ -130,12 +130,14 @@ class DataFiles:
             if 'mstskl' in json_entry:
                 for skill_id in json_entry['mstskl']: # Master abilities
                     temp_unit.master_abilities.append(result_skills_by_id[skill_id])
-                    temp_unit.is_playable = True # Only playable characters appear to have master skills
             if 'elem' in json_entry:
                 for element_id in json_entry['elem']:
                     temp_unit.elements.append(DataFiles.ELEMENT_NAME_BY_ID[element_id])
             if 'rare' in json_entry:
                 temp_unit.rarity = DataFiles.SHORT_RARITY_BY_ID[json_entry['rare']]
+            if 'type' in json_entry and json_entry['type'] == 0:
+                temp_unit.is_playable = True # Non-playable characters have type 7 or something like it.
+
 
         print('Bound jobs and skills for ' + str(len(result_all_units_by_id)) + ' units.')
 
