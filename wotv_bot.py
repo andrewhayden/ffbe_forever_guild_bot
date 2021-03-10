@@ -423,6 +423,8 @@ class WotvBot:
            and how the skill is unlocked."""
         if result.is_master_ability:
             return 'Master ability for ' + result.unit.name + ' ' + WotvBot.rarityAndElementParenthetical(result.unit) + ': ' + result.skill.description
+        if result.is_limit_burst:
+            return 'Limit burst (' + result.skill.name + ') for ' + result.unit.name + ' ' + WotvBot.rarityAndElementParenthetical(result.unit) + ': ' + result.skill.description
         text = 'Skill "' + result.skill.name + '" learned by ' + result.unit.name
         text += ' ' + WotvBot.rarityAndElementParenthetical(result.unit)
         text += ' with job ' + result.board_skill.unlocked_by_job.name + ' at job level ' + str(result.board_skill.unlocked_by_job_level)

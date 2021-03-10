@@ -15,6 +15,14 @@
       {
         "key": "SK_MA_LW_ENBT",
         "value": "Master Ability"
+      },
+      {
+        "key": "SK_LB_LW_MONT",
+        "value": "Destiny's Cross"
+      },
+      {
+        "key": "SK_LB_LW_ENBT",
+        "value": "Enduring Fortitude"
       }
     ]
 }

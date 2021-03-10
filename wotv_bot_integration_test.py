@@ -705,7 +705,17 @@ class WotvBotIntegrationTests:
         assert matches[1].unit.name == 'Engelbert'
         assert matches[1].skill.name == 'Master Ability'
         assert matches[1].is_master_ability is True
+        assert matches[0].is_limit_burst is False
         assert matches[1].board_skill is None
+
+        # Test exact match with a Limit Burst
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Destiny\'s Cr"')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Destiny\'s Cross'
+        assert matches[0].is_master_ability is False
+        assert matches[0].is_limit_burst is True
+        assert matches[0].board_skill is None
 
         # Test fuzzy match with a Board Skill
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'LAD ler')
@@ -718,7 +728,13 @@ class WotvBotIntegrationTests:
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[1].unit.name == 'Engelbert'
 
+        # Test fuzzy match with a Limit Burst
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'Destiny')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+
         # Test using an explicitly-passed list (as if a filtered list of units had been provided)
+        matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'MaStEr')
         matches = matches[1:2] # Just Engelbert
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'MaStEr', matches)
         assert len(matches) == 1
@@ -747,8 +763,17 @@ class WotvBotIntegrationTests:
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
 
+        # Test exact match with Limit Burst skill
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, '"Deals Dmg (L) to targets within range."')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Destiny\'s Cross'
+        assert matches[0].is_master_ability is False
+        assert matches[0].is_limit_burst is True
+        assert matches[0].board_skill is None
+
         # Test fuzzy match with a Board Skill
-        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'AN EAT') # Master ability
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'AN EAT')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Killer Blade'
@@ -757,11 +782,20 @@ class WotvBotIntegrationTests:
         assert matches[0].board_skill.unlocked_by_job_level == 7
 
         # Test fuzzy match with Master Ability skill
-        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'JuMp') # Master ability
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'JuMp')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].skill.name == 'Master Ability'
         assert matches[0].is_master_ability is True
+        assert matches[0].board_skill is None
+
+        # Test fuzzy match with Limit Burst skill
+        matches = DataFileSearchUtils.findUnitWithSkillDescription(data_files, 'targets within range.')
+        assert len(matches) == 1
+        assert matches[0].unit.name == 'Mont Leonis'
+        assert matches[0].skill.name == 'Destiny\'s Cross'
+        assert matches[0].is_master_ability is False
+        assert matches[0].is_limit_burst is True
         assert matches[0].board_skill is None
 
         # Test using an explicitly-passed list (as if a filtered list of units had been provided)
@@ -937,16 +971,19 @@ class WotvBotIntegrationTests:
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
         wotv_bot = WotvBot(self.wotv_bot_config)
+
         # Test fuzzy match for Killer Blade
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
         expected_text += 'Skill "Killer Blade" learned by Mont Leonis (MR rarity, Earth element) with job Lord at job level 7: Deals Dmg (L) to target & bestows Man Eater.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Blade'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
         # Test exact match for Killer Blade
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Killer Bla"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
         # Test fuzzy match for master ability
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
         expected_text += 'Master ability for Engelbert (UR rarity, Light element): DEF +15\n'
@@ -954,25 +991,41 @@ class WotvBotIntegrationTests:
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
         # Test exact match for master ability
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "ster Ability"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
+        # Test fuzzy match for Limit Burst
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
+        expected_text += 'Limit burst (Enduring Fortitude) for Engelbert (UR rarity, Light element): Deals Dmg (L) to target & raises Dmg according to amount of own HP lost.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name enduring'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Test exact match for Limit Burst
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "g Fortitu"'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+
         # Test exact match for nonexistent skill
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: No skills matched the search.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name "Nonexistent Skill"'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
         # Test fuzzy match for nonexistent skill
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name qwyjibo'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
         # Test refinements: Not earth
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
         expected_text += 'Master ability for Engelbert (UR rarity, Light element): DEF +15'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master\n  not element earth'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
+
         # Test refinements: earth
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
         expected_text += 'Master ability for Mont Leonis (MR rarity, Earth element): DEF +15, Jump +1'

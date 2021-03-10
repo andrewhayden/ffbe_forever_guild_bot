@@ -24,10 +24,14 @@ class UnitSearchResult:
 class UnitSkillSearchResult(UnitSearchResult):
     """A unit skill search result containing a fully qualified result: the unit, the ability board criteria gating the skill, and the skill itself.
 
-    The search result field is_master_ability is set to true if the result was a hit on a Master Ability instead of a Board Skill. In this case,
+    The search result field is_master_ability is set to True if the result was a hit on a Master Ability instead of a Board Skill. In this case,
     the board_skill field will be set to None and the skill is a Master Ability.
+
+    The searchr result field is_limit_burst is set to True if the result was a hit on a limit burst instead of a "regular" skill. In this case,
+    the board_skill field will be set to None and the skill is a Limit Burst.
     """
     is_master_ability: bool = False
+    is_limit_burst: bool = False
     board_skill: WotvBoardSkill = None
     skill: WotvSkill = None
 
@@ -77,6 +81,15 @@ class DataFileSearchUtils:
                         one_result.is_master_ability = True
                         one_result.skill = skill
                         results.append(one_result)
+            if unit.limit_burst_skill:
+                skill = unit.limit_burst_skill # shorthand
+                if (exact_match_only and search_text in skill.name.lower()) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.name.lower(), search_text)):
+                    one_result = UnitSkillSearchResult()
+                    one_result.unit = unit
+                    one_result.is_limit_burst = True
+                    one_result.skill = skill
+                    results.append(one_result)
         return results
 
     @staticmethod
@@ -118,6 +131,15 @@ class DataFileSearchUtils:
                         one_result.is_master_ability = True
                         one_result.skill = skill
                         results.append(one_result)
+            if unit.limit_burst_skill:
+                skill = unit.limit_burst_skill # shorthand
+                if (exact_match_only and search_text in skill.description.lower()) or (
+                    (not exact_match_only) and CommonSearchUtils.fuzzyMatches(skill.description.lower(), search_text)):
+                    one_result = UnitSkillSearchResult()
+                    one_result.unit = unit
+                    one_result.is_limit_burst = True
+                    one_result.skill = skill
+                    results.append(one_result)
         return results
 
     @staticmethod

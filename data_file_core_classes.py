@@ -47,6 +47,7 @@ class WotvUnit:
     rarity: str = None # Example: "MR"
     unique_id: str = None # Example: "UN_LW_P_MONT"
     name: str = None # Example: "Mont Leonis"
+    limit_burst_skill: WotvSkill = None # Example: (the WotvSkill object whose key is SK_LB_LW_MONT (in-game name "Destiny's Cross"))
     ability_board: WotvAbilityBoard = WotvAbilityBoard() # Example: ("SK_LW_WAR_M_4" = WotvSkill)
     master_abilities: List[WotvSkill] = field(default_factory=list) # Example: [(the WotvSkill object whose key is SK_MA_LW_MONT)]
     job_list: List[WotvJob] = field(default_factory=list) # Example: [<WotvJob>, <WotvJob>, <WotvJob>] (typically exactly 3 jobs, ordered)

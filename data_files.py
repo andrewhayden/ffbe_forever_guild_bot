@@ -130,6 +130,8 @@ class DataFiles:
             if 'mstskl' in json_entry:
                 for skill_id in json_entry['mstskl']: # Master abilities
                     temp_unit.master_abilities.append(result_skills_by_id[skill_id])
+            if 'limit' in json_entry:
+                temp_unit.limit_burst_skill = result_skills_by_id[json_entry['limit']]
             if 'elem' in json_entry:
                 for element_id in json_entry['elem']:
                     temp_unit.elements.append(DataFiles.ELEMENT_NAME_BY_ID[element_id])
@@ -137,7 +139,6 @@ class DataFiles:
                 temp_unit.rarity = DataFiles.SHORT_RARITY_BY_ID[json_entry['rare']]
             if 'type' in json_entry and json_entry['type'] == 0:
                 temp_unit.is_playable = True # Non-playable characters have type 7 or something like it.
-
 
         print('Bound jobs and skills for ' + str(len(result_all_units_by_id)) + ' units.')
 
@@ -161,11 +162,36 @@ class DataFiles:
                         temp_board_skill.unlocked_by_job_level = panel_entry['need_level']
                     temp_board.all_skills[temp_board_skill.skill_id] = temp_board_skill
 
-        result_playable_units_by_id: Dict[str, WotvUnit] = {k:v for k, v in result_all_units_by_id.items() if v.is_playable}
+        # Playable units all have ability boards with a skill count greater than 0. Filter accordingly.
+        result_playable_units_by_id: Dict[str, WotvUnit] = {
+            k:v for k, v in result_all_units_by_id.items() if v.is_playable and len(v.ability_board.all_skills) > 0
+        }
         print('It looks like there are ' + str(len(result_playable_units_by_id)) + ' playable units: ')
-        playable_unit_names = sorted([unit.name for unit in result_playable_units_by_id.values()])
-        print('Playable unit names (for sanity checking): ' + str(playable_unit_names))
-        print('Discovered and bound ' + str(board_count) + ' ability boards for units, containing a total of ' + str(skill_count) + ' skills.')
+        # Output a nicely formatted list of units so we can see what's in the dump.
+        # Start by sorting by name and tracking the longest name so that we can align the output horizontally.
+        playable_units_sorted_by_name = list()
+        longest_name_length = 0
+        longest_id_length = 0
+        longest_limit_burst_name_length = 0
+        for _, v in result_playable_units_by_id.items():
+            playable_units_sorted_by_name.append(v)
+            longest_name_length = max(longest_name_length, len(v.name))
+            longest_id_length = max(longest_id_length, len(str(v.unique_id)))
+            longest_limit_burst_name_length = max(longest_limit_burst_name_length, len(v.limit_burst_skill.name))
+        playable_units_sorted_by_name = sorted(playable_units_sorted_by_name, key=lambda one_unit: one_unit.name)
+
+        # Dump basic data for all playable units.
+        for playable_unit in playable_units_sorted_by_name:
+            buffer = ''
+            buffer += playable_unit.name.rjust(longest_name_length) + ' [id '
+            buffer += playable_unit.unique_id.rjust(longest_id_length) + ']: '
+            buffer += 'Ability board: ' + ('Yes' if playable_unit.ability_board else 'No ') + ', '
+            buffer += 'Limit Burst: ' + playable_unit.limit_burst_skill.name.rjust(longest_limit_burst_name_length) + ', '
+            buffer += 'Jobs: ' + str(len(playable_unit.job_list)) + ', '
+            buffer += 'Unique Skills: ' + str(len(playable_unit.ability_board.all_skills))
+            print(buffer)
+
+        print('Discovered and bound ' + str(board_count) + ' ability boards for units, containing a total of ' + str(skill_count) + ' unique skills.')
         return DataFiles(result_all_units_by_id, result_playable_units_by_id, result_skills_by_id, result_jobs_by_id)
 
     def sanityCheckCounts(self, min_unit_count: int = MIN_UNIT_COUNT, min_skill_count: int = MIN_SKILL_COUNT, min_job_count: int = MIN_JOB_COUNT):

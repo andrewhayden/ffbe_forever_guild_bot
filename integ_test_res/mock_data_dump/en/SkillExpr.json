@@ -15,6 +15,14 @@
       {
         "key": "SK_MA_LW_ENBT",
         "value": "DEF +15"
+      },
+      {
+        "key": "SK_LB_LW_MONT",
+        "value": "Deals Dmg (L) to targets within range."
+      },
+      {
+        "key": "SK_LB_LW_ENBT",
+        "value": "Deals Dmg (L) to target & raises Dmg according to amount of own HP lost."
       }
     ]
 }
