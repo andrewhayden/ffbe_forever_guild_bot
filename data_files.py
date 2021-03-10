@@ -177,7 +177,8 @@ class DataFiles:
             playable_units_sorted_by_name.append(v)
             longest_name_length = max(longest_name_length, len(v.name))
             longest_id_length = max(longest_id_length, len(str(v.unique_id)))
-            longest_limit_burst_name_length = max(longest_limit_burst_name_length, len(v.limit_burst_skill.name))
+            if v.limit_burst_skill:
+                longest_limit_burst_name_length = max(longest_limit_burst_name_length, len(v.limit_burst_skill.name))
         playable_units_sorted_by_name = sorted(playable_units_sorted_by_name, key=lambda one_unit: one_unit.name)
 
         # Dump basic data for all playable units.
@@ -186,7 +187,10 @@ class DataFiles:
             buffer += playable_unit.name.rjust(longest_name_length) + ' [id '
             buffer += playable_unit.unique_id.rjust(longest_id_length) + ']: '
             buffer += 'Ability board: ' + ('Yes' if playable_unit.ability_board else 'No ') + ', '
-            buffer += 'Limit Burst: ' + playable_unit.limit_burst_skill.name.rjust(longest_limit_burst_name_length) + ', '
+            if playable_unit.limit_burst_skill:
+                buffer += 'Limit Burst: ' + playable_unit.limit_burst_skill.name.rjust(longest_limit_burst_name_length) + ', '
+            else:
+                buffer += 'Limit Burst: ' + '(none)'.rjust(longest_limit_burst_name_length) + ', '
             buffer += 'Jobs: ' + str(len(playable_unit.job_list)) + ', '
             buffer += 'Unique Skills: ' + str(len(playable_unit.ability_board.all_skills))
             print(buffer)
