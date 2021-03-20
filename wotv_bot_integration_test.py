@@ -1200,6 +1200,31 @@ class WotvBotIntegrationTests:
         # Halt the reminders system.
         reminders.stop()
 
+    async def testReminders_WorksAcrossBotRestart(self):
+        """Tests that shutting down the reminders subsystem and bringing it back up will not cancel reminders."""
+        WotvBotIntegrationTests.cleanupReminders()
+        reminders = Reminders(WotvBotIntegrationTests.TEST_REMINDERS_PATH)
+        reminders.start()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        print('scheduling reminders and halting the reminders service prematurely')
+        # Schedule for 5s from now, then stop the reminders system.
+        reminders.addWhimsyReminder('foo',
+            WotvBotIntegrationTests.whimsyNrgReminderCallback, {'whimsy-nrg'},
+            WotvBotIntegrationTests.whimsySpawnReminderCallback, {'whimsy-spawn'},
+            nrg_time_ms_override=5000,
+            spawn_time_ms_override=5100)
+        reminders.stop()
+        time.sleep(1)
+        print('restarting reminders system and waiting for tasks that were scheduled previously')
+        reminders = Reminders(WotvBotIntegrationTests.TEST_REMINDERS_PATH)
+        reminders.start()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+
+        # Halt the reminders system.
+        reminders.stop()
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
@@ -1233,6 +1258,8 @@ class WotvBotIntegrationTests:
         """Run only the reminders tests. These are all local-execution only."""
         print('>>> Test: testReminders_WhimsyShop')
         await self.testReminders_WhimsyShop()
+        print('>>> Test: testReminders_WorksAcrossBotRestart (takes a little while)')
+        await self.testReminders_WorksAcrossBotRestart()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
