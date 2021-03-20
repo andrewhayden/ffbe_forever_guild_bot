@@ -14,7 +14,7 @@ sudo python3.7 get-pip.py
 python3.7 -m venv bot-env
 source bot-env/bin/activate
 pip install --upgrade pip
-pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib pytesseract numpy imutils opencv-python opencv-contrib-python discord.py
+pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib pytesseract numpy imutils opencv-python opencv-contrib-python discord.py apscheduler sqlalchemy
 ```
 
 You will also need to clone a copy of the War of the Visions data dump github project at https://github.com/shalzuth/wotv-ffbe-dump. Make note of the path where this is located.

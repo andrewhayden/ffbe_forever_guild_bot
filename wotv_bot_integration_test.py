@@ -5,14 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sys
 import time
 import types
+import threading
+from typing import Dict
 
 from admin_utils import AdminUtils
 from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils
 from esper_resonance_manager import EsperResonanceManager
+from reminders import Reminders
 from vision_card_ocr_utils import VisionCardOcrUtils
 from wotv_bot import WotvBot, WotvBotConfig
 from worksheet_utils import WorksheetUtils
@@ -69,6 +73,9 @@ class WotvBotIntegrationTests:
 
     # For testing data dump functionality
     MOCK_DATA_DUMP_ROOT_PATH = 'integ_test_res/mock_data_dump'
+
+    # Temporary storage of reminders during testing
+    TEST_REMINDERS_PATH = 'integ_test_res/test_reminders.sql'
 
     """An instance of the bot, configured to manage specific spreadsheets and using Discord and Google credentials."""
     def __init__(self, wotv_bot_config: WotvBotConfig):
@@ -1140,6 +1147,59 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
+    __REMINDER_CALLBACKS : Dict[str, asyncio.Semaphore] = {}
+
+    @staticmethod
+    def cleanupReminders():
+        """Delete the testing reminders SQL database."""
+        # Callbacks trigger semaphore release. Tests can then await the semaphores to continue forward.
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS : Dict[str, threading.Semaphore] = {}
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-nrg'] = threading.Semaphore(1)
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-spawn'] = threading.Semaphore(1)
+        os.remove(WotvBotIntegrationTests.TEST_REMINDERS_PATH)
+
+    @staticmethod
+    def whimsyNrgReminderCallback(param1):
+        """Helper function for test execution."""
+        print('callback function for whimsy nrg reminder was triggered with param ' + str(param1))
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS[param1].release()
+
+    @staticmethod
+    def whimsySpawnReminderCallback(param1):
+        """Helper function for test execution."""
+        print('callback function for whimsy spawn reminder was triggered with param ' + str(param1))
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS[param1].release()
+
+    async def testReminders_WhimsyShop(self):
+        """Test creating and managing whimsy shop reminders."""
+        # First a fast test that ensures callbacks are executed as expected and parameters are passed.
+        WotvBotIntegrationTests.cleanupReminders()
+        reminders = Reminders(WotvBotIntegrationTests.TEST_REMINDERS_PATH)
+        reminders.start()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        reminders.addWhimsyReminder('foo',
+            WotvBotIntegrationTests.whimsyNrgReminderCallback, {'whimsy-nrg'},
+            WotvBotIntegrationTests.whimsySpawnReminderCallback, {'whimsy-spawn'},
+            nrg_time_ms_override=1000,
+            spawn_time_ms_override=2000)
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        WotvBotIntegrationTests.__REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        scheduled_reminders = reminders.getWhimsyReminders('foo')
+        assert scheduled_reminders['nrg'] is None
+        assert scheduled_reminders['spawn'] is None
+
+        # Now add longer-time (30m, 60m) reminders and test that they are retrievable
+        reminders.addWhimsyReminder('bar',
+            WotvBotIntegrationTests.whimsyNrgReminderCallback, {'whimsy-nrg'},
+            WotvBotIntegrationTests.whimsySpawnReminderCallback, {'whimsy-spawn'})
+        scheduled_reminders = reminders.getWhimsyReminders('bar')
+        assert scheduled_reminders['nrg'] is not None
+        assert scheduled_reminders['spawn'] is not None
+
+        # Halt the reminders system.
+        reminders.stop()
+
     @staticmethod
     def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
@@ -1169,9 +1229,15 @@ class WotvBotIntegrationTests:
         print('>>> Test: testDataFileSearchUtils_RichUnitSearch')
         await self.testDataFileSearchUtils_RichUnitSearch()
 
+    async def runRemindersTests(self):
+        """Run only the reminders tests. These are all local-execution only."""
+        print('>>> Test: testReminders_WhimsyShop')
+        await self.testReminders_WhimsyShop()
+
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
         await self.runDataFileTests()
+        await self.runRemindersTests()
         print('>>> Test: testCommand_Help')
         await self.testCommand_Help()
         print('>>> Test: testVisionCardOcrUtils_ExtractVisionCardFromScreenshot')
