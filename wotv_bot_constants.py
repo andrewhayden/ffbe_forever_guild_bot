@@ -46,6 +46,9 @@ class WotvBotConstants:
     # See detailed help for more information.
     RICH_UNIT_SEARCH_PATTERN = re.compile(r'^!unit-search (?P<search_type>[^\s]+)\s*(?P<search_text>.+)?$')
 
+    # Pattern to get a reminder when it's time to spawn the Whimsy shop again.
+    WHIMSY_REMINDER_PATTERN = re.compile(r'^!whimsy(?P<command>.+)?$')
+
     # (Hidden) Pattern for getting your own user ID out of Discord
     WHOIS_PATTERN = re.compile(r'^!whois (?P<server_handle>.+)$')
 

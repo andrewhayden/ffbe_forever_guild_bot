@@ -15,6 +15,7 @@ from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
 from vision_card_manager import VisionCardManager
 from wotv_bot_common import ExposableException
+from reminders import Reminders
 
 class DiscordSafeException(ExposableException):
     """An exception whose error text is safe to show in Discord."""
@@ -33,14 +34,16 @@ class WotvBotConfig:
     spreadsheet_app: the Google spreadsheets Resource obtained from calling the spreadsheets() method on a Service Resource.
     discord_client: the Discord client
     data_files: the WotV data dump.
+    reminders: the reminders subsystem.
     """
     access_control_spreadsheet_id: str = None
     esper_resonance_spreadsheet_id: str = None
     sandbox_esper_resonance_spreadsheet_id: str = None
     vision_card_spreadsheet_id: str = None
     spreadsheet_app = None
-    discord_client = None
+    discord_client: discord.Client = None
     data_files: DataFiles = None
+    reminders: Reminders = None
 
 @dataclass
 class CommandContextInfo:
@@ -79,12 +82,30 @@ class CommandContextInfo:
 
 class WotvBot:
     """An instance of the bot, configured to manage specific spreadsheets and using Discord and Google credentials."""
+
+    # The static instance of the bot, not for general consumption.
+    __staticInstance: WotvBot = None
+
     def __init__(self, wotv_bot_config: WotvBotConfig):
         self.wotv_bot_config = wotv_bot_config
         # Set this to true in an integration test to allow a local filesystem path to be used in a Discord
         # message as the source of the image to be processed by OCR for Vision Card text extraction. For
         # obvious security reasons, this is false by default.
         self.INTEG_TEST_LOCAL_FILESYSTEM_READ_FOR_VISION_CARD = False
+        # Set the static instance of the bot to this instance.
+        WotvBot.__staticInstance = self
+        self.whimsy_shop_nrg_reminder_delay_ms: int = 30*60*1000 # 30 minutes
+        self.whimsy_shop_spawn_reminder_delay_ms: int = 60*60*1000 # 60 minutes
+
+    @staticmethod
+    def __getStaticInstance():
+        """Returns an unsafe static reference to the "current" bot, if there is one. In reality this is just the most recently-created bot.
+
+        Use with extreme caution. This is primarily intended for internal use cases where a static method is required, such as the callback
+        for a "apscheduler"-module task such as a reminder that is being invoked asynchronously and potentially across different instances of
+        the bot process where the specific instance of the bot is irrelevant.
+        """
+        return WotvBot.__staticInstance
 
     async def handleMessage(self, message):
         """Process the request and produce a response."""
@@ -165,6 +186,10 @@ class WotvBot:
         match = WotvBotConstants.RICH_UNIT_SEARCH_PATTERN.match(first_line_lower)
         if match:
             return await self.handleRichUnitSearch(context.shallowCopy().withMatch(match))
+
+        match = WotvBotConstants.WHIMSY_REMINDER_PATTERN.match(first_line_lower)
+        if match:
+            return await self.handleWhimsyReminder(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if first_line_lower.startswith('!whoami'):
@@ -531,3 +556,33 @@ class WotvBot:
         if truncated:
             responseText += 'Results truncated because there were too many.'
         return (responseText.strip(), None)
+
+    @staticmethod
+    def whimsyShopNrgReminderCallback(target_channel_id: str, from_id: str):
+        """Handles a reminder callback for a whimsy shop nrg reminder."""
+        discord_client: discord.Client = WotvBot.__getStaticInstance().wotv_bot_config.discord_client
+        text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
+        text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(from_id))
+
+    @staticmethod
+    def whimsyShopSpawnReminderCallback(target_channel_id: str, from_id: str):
+        """Handles a reminder callback for a whimsy shop spawn reminder."""
+        discord_client: discord.Client = WotvBot.__getStaticInstance().wotv_bot_config.discord_client
+        text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
+        text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(from_id))
+
+    async def handleWhimsyReminder(self, context: CommandContextInfo) -> (str, str):
+        """Handle !whimsy command for a whimsy reminder"""
+        command = 'set-reminder'
+        if context.command_match.group('command'):
+            command = context.command_match.group('command').strip()
+        print('Whimsy reminder request from user %s#%s, command %s' % (context.from_name, context.from_discrim, command))
+        if command == 'set-reminder':
+            nrg_callback: callable = WotvBot.whimsyShopNrgReminderCallback
+            nrg_params = [context.original_message.get_channel().id, context.from_id]
+            spawn_callback: callable = WotvBot.whimsyShopSpawnReminderCallback
+            spawn_params = [context.original_message.get_channel().id, context.from_id]
+            self.wotv_bot_config.reminders.addWhimsyReminder(context.from_name, nrg_callback, nrg_params, spawn_callback, spawn_params,
+            self.whimsy_shop_nrg_reminder_delay_ms, self.whimsy_shop_spawn_reminder_delay_ms)
+            responseText = '<@{0}>: Your reminder has been set.'.format(context.from_id)
+        return (responseText, None)

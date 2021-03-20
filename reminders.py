@@ -1,6 +1,6 @@
 """Module containing reminders functionality for the guild bot."""
 import datetime
-from typing import Dict
+from typing import Dict, List
 from pytz import utc
 import apscheduler
 import apscheduler.triggers.date
@@ -24,8 +24,8 @@ class Reminders:
         self.scheduler.shutdown(wait=False)
         del self.scheduler
 
-    def addWhimsyReminder(self, owner_name, nrg_reminder_callback, nrg_reminder_args, spawn_reminder_callback,
-        spawn_reminder_args: str, nrg_time_ms_override: int = None, spawn_time_ms_override: int = None):
+    def addWhimsyReminder(self, owner_name: str, nrg_reminder_callback: callable, nrg_reminder_args: List[str], spawn_reminder_callback: callable,
+        spawn_reminder_args: List[str], nrg_time_ms_override: int = None, spawn_time_ms_override: int = None):
         """Add a whimsy shop reminder. Actually a pair of reminders, one for NRG spending and one for whimsy spawning.
 
         The first reminder is set for 30 minutes after now, and reminds the user that they can now start spending NRG.
