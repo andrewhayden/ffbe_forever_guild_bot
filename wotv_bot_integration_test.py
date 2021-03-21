@@ -1034,6 +1034,23 @@ class WotvBotIntegrationTests:
         expected_text = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
         assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
 
+    async def testCommand_Whimsy_Cancel(self):
+        """Test creating and cancelling a whimsy shop reminders via the bot."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        wotv_bot.whimsy_shop_nrg_reminder_delay_ms = 1000
+        wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 2000
+        self.cleanupBotReminders()
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Any and all outstanding whimsy reminders have been canceled.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy cancel'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Check that there's no reminder left after everything is done...
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: You do not currently have a whimsy reminder set.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+
     async def testCommand_Whimsy_When(self):
         """Test checking the remaining time for a whimsy shop."""
         wotv_bot = WotvBot(self.wotv_bot_config)
@@ -1374,6 +1391,8 @@ class WotvBotIntegrationTests:
         await self.testCommand_Whimsy()
         print('>>> Test: testBotReminders_Whimsy_When')
         await self.testCommand_Whimsy_When()
+        print('>>> Test: testBotReminders_Whimsy_Cancel')
+        await self.testCommand_Whimsy_Cancel()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""

@@ -616,4 +616,7 @@ class WotvBot:
                     responseText += ' To force the timer to reset to 60 minutes *immediately*, use the command "!whimsy set-reminder".'
             else:
                 responseText = '<@{0}>: You do not currently have a whimsy reminder set.'.format(context.from_id)
+        elif command == 'cancel':
+            reminders.cancelWhimsyReminders(owner_id)
+            responseText = '<@{0}>: Any and all outstanding whimsy reminders have been canceled.'.format(context.from_id)
         return (responseText, None)

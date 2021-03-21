@@ -97,3 +97,13 @@ class Reminders:
             next_run_time: datetime.datetime = scheduled['spawn'].next_run_time
             return (next_run_time - datetime.datetime.now(tz=utc)).total_seconds()
         return None
+
+    def cancelWhimsyReminders(self, owner_id: str):
+        """Cancels any and all oustanding whimsy reminders for the specified owner."""
+        job: apscheduler.job.Job = None
+        job = self.scheduler.get_job(owner_id + '#whimsy-nrg')
+        if job:
+            job.remove()
+        job = self.scheduler.get_job(owner_id + '#whimsy-spawn')
+        if job:
+            job.remove()

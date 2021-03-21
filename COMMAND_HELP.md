@@ -64,6 +64,9 @@
 `!whimsy`
 > Set up personal reminders for Whimsy Shops. You'll receive a first reminder when NRG starts counting towards the shop spawning again, and a second reminder once the shop can actually spawn again. If you already have a reminder set, this tells you the status of that reminder (functions the same as "!whimsy when" (see below)). To forcibly restart the existing reminder, use "!whimsy set-reminder".
 
+`!whimsy cancel`
+> Cancel and any all outstanding personal whimsy shop reminders.
+
 `!whimsy set-reminder`
 > Same as "!whimsy" but forcibly restarts the existing timer, if one already exists.
 
