@@ -71,3 +71,29 @@ class Reminders:
             'nrg': self.scheduler.get_job(owner_id + '#whimsy-nrg'),
             'spawn': self.scheduler.get_job(owner_id + '#whimsy-spawn'),
         }
+
+    def hasPendingWhimsyNrgReminder(self, owner_id: str) -> bool:
+        """Return true if the specified user has a pending whimsy shop NRG reminder."""
+        scheduled: Dict[str, apscheduler.job.Job] = self.getWhimsyReminders(owner_id)
+        return scheduled and 'nrg' in scheduled and scheduled['nrg'] and scheduled['nrg'].next_run_time and scheduled['nrg'].next_run_time > datetime.datetime.now(tz=utc)
+
+    def hasPendingWhimsySpawnReminder(self, owner_id: str) -> bool:
+        """Return true if the specified user has a pending whimsy shop spawn reminder."""
+        scheduled: Dict[str, apscheduler.job.Job] = self.getWhimsyReminders(owner_id)
+        return scheduled and 'spawn' in scheduled and scheduled['spawn'] and scheduled['spawn'].next_run_time and scheduled['spawn'].next_run_time > datetime.datetime.now(tz=utc)
+
+    def timeTillWhimsyNrgReminder(self, owner_id: str) -> int:
+        """If the specified user has a whimsy-shop NRG reminder in the future, return the number of seconds until that reminder fires; else return None."""
+        scheduled: Dict[str, apscheduler.job.Job] = self.getWhimsyReminders(owner_id)
+        if scheduled and 'nrg' in scheduled and scheduled['nrg'] and scheduled['nrg'].next_run_time and scheduled['nrg'].next_run_time > datetime.datetime.now(tz=utc):
+            next_run_time: datetime.datetime = scheduled['nrg'].next_run_time
+            return (next_run_time - datetime.datetime.now(tz=utc)).total_seconds()
+        return None
+
+    def timeTillWhimsySpawnReminder(self, owner_id: str) -> int:
+        """If the specified user has a whimsy-shop spawn reminder in the future, return the number of seconds until that reminder fires; else return None."""
+        scheduled: Dict[str, apscheduler.job.Job] = self.getWhimsyReminders(owner_id)
+        if scheduled and 'spawn' in scheduled and scheduled['spawn'] and scheduled['spawn'].next_run_time and scheduled['spawn'].next_run_time > datetime.datetime.now(tz=utc):
+            next_run_time: datetime.datetime = scheduled['spawn'].next_run_time
+            return (next_run_time - datetime.datetime.now(tz=utc)).total_seconds()
+        return None

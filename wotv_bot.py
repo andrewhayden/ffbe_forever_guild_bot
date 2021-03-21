@@ -1,13 +1,9 @@
 """The runtime heart of the WOTV Bot."""
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict
-from pytz import utc
 import io
-import datetime
 from re import Match
 
-import apscheduler
 import discord
 
 from admin_utils import AdminUtils
@@ -579,29 +575,45 @@ class WotvBot:
 
     async def handleWhimsyReminder(self, context: CommandContextInfo) -> (str, str):
         """Handle !whimsy command for a whimsy reminder"""
-        command = 'set-reminder'
+        reminders = self.wotv_bot_config.reminders # Shorthand
+        owner_id = str(context.from_id) # Shorthand
+        command = '<none>'
         if context.command_match.group('command'):
             command = context.command_match.group('command').strip()
         print('Whimsy reminder request from user %s#%s, command %s' % (context.from_name, context.from_discrim, command))
+        responseText = '<@{0}>: Unknown/unsupported !whimsy command. Use !help for for more information.'.format(context.from_id)
+        # Default behavior - be smart. If the user has got a reminder set, don't overwrite it unless they pass set-reminder as the command.
+        # If they do not have a reminder set, go ahead and set it now.
+        append_overwrite_reminder_message = False # Whether or not to add some rem
+        if command == '<none>':
+            # Check if an existing reminder is set. If so prompt to overwrite...
+            if reminders.hasPendingWhimsyNrgReminder(owner_id) or reminders.hasPendingWhimsySpawnReminder(owner_id):
+                command = 'when'
+                append_overwrite_reminder_message = True # Remind the user how to overwrite the current timer.
+            else:
+                command = 'set-reminder' # Assume the user wants to set a reminder.
         if command == 'set-reminder':
+            append_existing_canceled_message = reminders.hasPendingWhimsyNrgReminder(owner_id) or reminders.hasPendingWhimsySpawnReminder(owner_id)
             nrg_callback: callable = WotvBot.whimsyShopNrgReminderCallback
-            nrg_params = [context.original_message.channel.id, str(context.from_id)]
+            nrg_params = [context.original_message.channel.id, owner_id]
             spawn_callback: callable = WotvBot.whimsyShopSpawnReminderCallback
             spawn_params = nrg_params
-            self.wotv_bot_config.reminders.addWhimsyReminder(context.from_name, str(context.from_id), nrg_callback, nrg_params, spawn_callback, spawn_params,
+            reminders.addWhimsyReminder(context.from_name, owner_id, nrg_callback, nrg_params, spawn_callback, spawn_params,
             self.whimsy_shop_nrg_reminder_delay_ms, self.whimsy_shop_spawn_reminder_delay_ms)
             responseText = '<@{0}>: Your reminder has been set.'.format(context.from_id)
+            if append_existing_canceled_message:
+                responseText += ' Your previous outstanding reminder has been discarded.'
         elif command == 'when':
-            scheduled: Dict[str, apscheduler.job.Job] = self.wotv_bot_config.reminders.getWhimsyReminders(str(context.from_id))
-            responseText = '<@{0}>: You do not currently have a whimsy reminder set.'.format(context.from_id)
-            if (not scheduled):
-                pass
-            elif 'nrg' in scheduled and scheduled['nrg'] and scheduled['nrg'].next_run_time and scheduled['nrg'].next_run_time > datetime.datetime.now(tz=utc):
-                next_run_time: datetime.datetime = scheduled['nrg'].next_run_time
-                time_left_minutes = int((next_run_time - datetime.datetime.now(tz=utc)).total_seconds() / 60)
-                responseText = '<@{0}>: NRG spent will start counting towards the next Whimsy Shop in about {1} minutes.'.format(context.from_id, str(time_left_minutes))
-            elif 'spawn' in scheduled and scheduled['spawn'] and scheduled['spawn'].next_run_time and scheduled['spawn'].next_run_time > datetime.datetime.now(tz=utc):
-                next_run_time: datetime.datetime = scheduled['spawn'].next_run_time
-                time_left_minutes = int((next_run_time - datetime.datetime.now(tz=utc)).total_seconds() / 60)
-                responseText = '<@{0}>: The Whimsy Shop will be ready to spawn again in about {1} minutes.'.format(context.from_id, str(time_left_minutes))
+            if reminders.hasPendingWhimsyNrgReminder(owner_id):
+                time_left_minutes = int(reminders.timeTillWhimsyNrgReminder(owner_id) / 60)
+                responseText = '<@{0}>: NRG spent will start counting towards the next Whimsy Shop in about {1} minutes.'.format(owner_id, str(time_left_minutes))
+                if append_overwrite_reminder_message:
+                    responseText += ' To force the timer to reset to 60 minutes *immediately*, use the command "!whimsy set-reminder".'
+            elif reminders.hasPendingWhimsySpawnReminder(owner_id):
+                time_left_minutes = int(reminders.timeTillWhimsySpawnReminder(owner_id) / 60)
+                responseText = '<@{0}>: The Whimsy Shop will be ready to spawn again in about {1} minutes.'.format(owner_id, str(time_left_minutes))
+                if append_overwrite_reminder_message:
+                    responseText += ' To force the timer to reset to 60 minutes *immediately*, use the command "!whimsy set-reminder".'
+            else:
+                responseText = '<@{0}>: You do not currently have a whimsy reminder set.'.format(context.from_id)
         return (responseText, None)

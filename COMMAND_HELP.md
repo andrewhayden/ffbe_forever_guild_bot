@@ -62,7 +62,10 @@
 > Find vision cards that **you own** that have abilities matching the specified text. See rules on matching below, matching against "ability-text" is done in the same was as it is for esper names, etc.
 
 `!whimsy`
-> Set up personal reminders for Whimsy Shops. You'll receive a first reminder when NRG starts counting towards the shop spawning again, and a second reminder once the shop can actually spawn again.
+> Set up personal reminders for Whimsy Shops. You'll receive a first reminder when NRG starts counting towards the shop spawning again, and a second reminder once the shop can actually spawn again. If you already have a reminder set, this tells you the status of that reminder (functions the same as "!whimsy when" (see below)). To forcibly restart the existing reminder, use "!whimsy set-reminder".
+
+`!whimsy set-reminder`
+> Same as "!whimsy" but forcibly restarts the existing timer, if one already exists.
 
 `!whimsy when`
 > Ask when your next Whimsy-related event is, based on the last time you use !whimsy. Tells you how about how long it will be before NRG spending counts or, if that time has already passed, tells you about how long it will be before the shop can spawn again. Accurate to the nearest minute, rounded down.

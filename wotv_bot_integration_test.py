@@ -982,7 +982,7 @@ class WotvBotIntegrationTests:
         assert matches[0].unit.name == 'Engelbert'
         assert matches[0].job.name == 'Paladin'
 
-    async def testCommand_WhimsyShop(self):
+    async def testCommand_Whimsy(self):
         """Test creating and managing whimsy shop reminders via the bot."""
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Speed up the reminder times so they come faster.
@@ -999,8 +999,42 @@ class WotvBotIntegrationTests:
         # And the spawn reminder second
         expected_text = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
         assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
+        # Create new reminders and then run the !whimsy command again to make sure the smart behavior for overwrites is working as intended.
+        wotv_bot.whimsy_shop_nrg_reminder_delay_ms = 1000
+        wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 2000
+        await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: NRG spent will start counting towards the next Whimsy Shop in about 0 minutes.'
+        expected_text += ' To force the timer to reset to 60 minutes *immediately*, use the command "!whimsy set-reminder".'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Consume the NRG reminder and test the spawn reminder
+        await WotvBotIntegrationTests.readFromTestChannel()
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: The Whimsy Shop will be ready to spawn again in about 0 minutes.'
+        expected_text += ' To force the timer to reset to 60 minutes *immediately*, use the command "!whimsy set-reminder".'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Consume the spawn reminder
+        await WotvBotIntegrationTests.readFromTestChannel()
 
-    async def testCommand_WhimsyShopWhen(self):
+        # Now force-restart an existing timer by creating a reminder and then creating a timer AGAIN, immediately.
+        wotv_bot.whimsy_shop_nrg_reminder_delay_ms =    100000  # This shouldn't matter as we will overwrite.
+        wotv_bot.whimsy_shop_spawn_reminder_delay_ms =  1000000 # This shouldn't matter as we will overwrite.
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        wotv_bot.whimsy_shop_nrg_reminder_delay_ms =    1000
+        wotv_bot.whimsy_shop_spawn_reminder_delay_ms =  2000
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
+        expected_text += ' Your previous outstanding reminder has been discarded.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy set-reminder'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Await the final messages and ensure they are correct.
+        expected_text = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
+        assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
+        expected_text = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
+        assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
+
+    async def testCommand_Whimsy_When(self):
         """Test checking the remaining time for a whimsy shop."""
         wotv_bot = WotvBot(self.wotv_bot_config)
         # Speed up the reminder times so they come faster, but enough delay for us to reliably run this test.
@@ -1281,8 +1315,8 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.cleanupStandaloneReminders()
         reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
         reminders.start(asyncio.get_event_loop())
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
         print('scheduling reminders and halting the reminders service prematurely')
         # Schedule for 5s from now, then stop the reminders system.
         reminders.addWhimsyReminder('foo_name', 'foo_id',
@@ -1291,22 +1325,22 @@ class WotvBotIntegrationTests:
             nrg_time_ms_override=5000,
             spawn_time_ms_override=5100)
         reminders.stop()
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
         print('restarting reminders system and waiting for tasks that were scheduled previously')
         reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
         reminders.start(asyncio.get_event_loop())
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
 
         # Halt the reminders system.
         reminders.stop()
 
     @staticmethod
-    def cooldown(time_secs: int=30):
+    async def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
         for i in range (time_secs, 0, -1):
             print('>>> Google API cooldown pause (' + str(time_secs) + 's): ' + str(i) + '...', end='\r', flush=True)
-            asyncio.sleep(1)
+            await asyncio.sleep(1)
         print('\n>>> Google API cooldown pause completed, moving on.')
 
     async def runDataFileTests(self):
@@ -1336,8 +1370,10 @@ class WotvBotIntegrationTests:
         await self.testStandaloneReminders_WhimsyShop()
         print('>>> Test: testStandaloneReminders_WorksAcrossBotRestart (takes a little while)')
         await self.testStandaloneReminders_WorksAcrossBotRestart()
-        print('>>> Test: testBotReminders_WhimsyShop')
-        await self.testCommand_WhimsyShop()
+        print('>>> Test: testBotReminders_Whimsy')
+        await self.testCommand_Whimsy()
+        print('>>> Test: testBotReminders_Whimsy_When')
+        await self.testCommand_Whimsy_When()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
@@ -1359,39 +1395,39 @@ class WotvBotIntegrationTests:
         """Run tests that require network access."""
         print('>>> Test: testAdminUtils_AddUser')
         await self.testAdminUtils_AddUser()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testResonanceManager_AddUser')
         await self.testResonanceManager_AddUser()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_AdminAddEsper_AsAdmin')
         await self.testCommand_AdminAddEsper_AsAdmin()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_AdminAddUnit_AsAdmin')
         await self.testCommand_AdminAddUnit_AsAdmin()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_AdminAddUser_AsAdmin')
         await self.testCommand_AdminAddUser_AsAdmin()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_AdminAddUser_AsNonAdmin')
         await self.testCommand_AdminAddUser_AsNonAdmin()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_ResSet')
         await self.testCommand_ResSet()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_Res')
         await self.testCommand_Res()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_VcSet')
         await self.testCommand_VcSet()
-        WotvBotIntegrationTests.cooldown()
+        await WotvBotIntegrationTests.cooldown()
 
         print('>>> Test: testCommand_VcAbility')
         await self.testCommand_VcAbility()
