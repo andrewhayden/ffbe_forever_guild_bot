@@ -61,6 +61,12 @@
 `!vc-ability ability-text`
 > Find vision cards that **you own** that have abilities matching the specified text. See rules on matching below, matching against "ability-text" is done in the same was as it is for esper names, etc.
 
+`!whimsy`
+> Set up personal reminders for Whimsy Shops. You'll receive a first reminder when NRG starts counting towards the shop spawning again, and a second reminder once the shop can actually spawn again.
+
+`!whimsy when`
+> Ask when your next Whimsy-related event is, based on the last time you use !whimsy. Tells you how about how long it will be before NRG spending counts or, if that time has already passed, tells you about how long it will be before the shop can spawn again. Accurate to the nearest minute, rounded down.
+
 # Additional Notes
 ## Searching within names of Espers, Units, Vision Cards, Skills, etc
 
