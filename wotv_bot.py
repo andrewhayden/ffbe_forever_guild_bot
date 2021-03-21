@@ -581,10 +581,10 @@ class WotvBot:
         print('Whimsy reminder request from user %s#%s, command %s' % (context.from_name, context.from_discrim, command))
         if command == 'set-reminder':
             nrg_callback: callable = WotvBot.whimsyShopNrgReminderCallback
-            nrg_params = [context.original_message.channel.id, context.from_id]
+            nrg_params = [context.original_message.channel.id, str(context.from_id)]
             spawn_callback: callable = WotvBot.whimsyShopSpawnReminderCallback
             spawn_params = nrg_params
-            self.wotv_bot_config.reminders.addWhimsyReminder(context.from_name, context.from_id, nrg_callback, nrg_params, spawn_callback, spawn_params,
+            self.wotv_bot_config.reminders.addWhimsyReminder(context.from_name, str(context.from_id), nrg_callback, nrg_params, spawn_callback, spawn_params,
             self.whimsy_shop_nrg_reminder_delay_ms, self.whimsy_shop_spawn_reminder_delay_ms)
             responseText = '<@{0}>: Your reminder has been set.'.format(context.from_id)
         return (responseText, None)
