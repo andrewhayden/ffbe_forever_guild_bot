@@ -1,9 +1,13 @@
 """The runtime heart of the WOTV Bot."""
 from __future__ import annotations
 from dataclasses import dataclass
+from typing import Dict
+from pytz import utc
 import io
+import datetime
 from re import Match
 
+import apscheduler
 import discord
 
 from admin_utils import AdminUtils
@@ -587,4 +591,17 @@ class WotvBot:
             self.wotv_bot_config.reminders.addWhimsyReminder(context.from_name, str(context.from_id), nrg_callback, nrg_params, spawn_callback, spawn_params,
             self.whimsy_shop_nrg_reminder_delay_ms, self.whimsy_shop_spawn_reminder_delay_ms)
             responseText = '<@{0}>: Your reminder has been set.'.format(context.from_id)
+        elif command == 'when':
+            scheduled: Dict[str, apscheduler.job.Job] = self.wotv_bot_config.reminders.getWhimsyReminders(str(context.from_id))
+            responseText = '<@{0}>: You do not currently have a whimsy reminder set.'.format(context.from_id)
+            if (not scheduled):
+                pass
+            elif 'nrg' in scheduled and scheduled['nrg'] and scheduled['nrg'].next_run_time and scheduled['nrg'].next_run_time > datetime.datetime.now(tz=utc):
+                next_run_time: datetime.datetime = scheduled['nrg'].next_run_time
+                time_left_minutes = int((next_run_time - datetime.datetime.now(tz=utc)).total_seconds() / 60)
+                responseText = '<@{0}>: NRG spent will start counting towards the next Whimsy Shop in about {1} minutes.'.format(context.from_id, str(time_left_minutes))
+            elif 'spawn' in scheduled and scheduled['spawn'] and scheduled['spawn'].next_run_time and scheduled['spawn'].next_run_time > datetime.datetime.now(tz=utc):
+                next_run_time: datetime.datetime = scheduled['spawn'].next_run_time
+                time_left_minutes = int((next_run_time - datetime.datetime.now(tz=utc)).total_seconds() / 60)
+                responseText = '<@{0}>: The Whimsy Shop will be ready to spawn again in about {1} minutes.'.format(context.from_id, str(time_left_minutes))
         return (responseText, None)

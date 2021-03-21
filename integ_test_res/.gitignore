@@ -1,3 +1,5 @@
 test_reminders.sql
 bot_test_reminders.sql-journal
 bot_test_reminders.sql
+standalone_test_reminders.sql
+standalone_test_reminders.sql-journal

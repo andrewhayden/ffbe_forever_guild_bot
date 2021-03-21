@@ -1000,6 +1000,43 @@ class WotvBotIntegrationTests:
         expected_text = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
         assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
 
+    async def testCommand_WhimsyShopWhen(self):
+        """Test checking the remaining time for a whimsy shop."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        # Speed up the reminder times so they come faster, but enough delay for us to reliably run this test.
+        # We will do the following sequence of events:
+        # 1. Set up a whimsy reminder, which creates both an NRG-spend and a shop-spawn reminder
+        # 2. Immediately check when the next reminder is, which should tell us about the NRG-spend reminder in the future.
+        # 3. Wait for the NRG-spend reminder to fire
+        # 4. Check again when the next reminder is, which should tell us about the shop-spawn reminder in the future.
+        # 5. Wait for the shop-spawn reminder to fire
+        # 6. Check again when the next reminder is and find no reminder scheduled.
+        wotv_bot.whimsy_shop_nrg_reminder_delay_ms = 1000
+        wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 2000
+        self.cleanupBotReminders()
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Check when NRG starts to count again...
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: NRG spent will start counting towards the next Whimsy Shop in about 0 minutes.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Wait for the nrg-spent reminder
+        expected_text = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
+        assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
+        # Check when the whimsy shop will spawn again...
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: The Whimsy Shop will be ready to spawn again in about 0 minutes.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Wait for the spawn reminder
+        expected_text = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
+        assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
+        # Check that there's no reminder left after everything is done...
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: You do not currently have a whimsy reminder set.'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
         wotv_bot = WotvBot(self.wotv_bot_config)
