@@ -6,12 +6,16 @@ import logging
 import discord
 
 from data_files import DataFiles
+from reminders import Reminders
 from wotv_bot_common import ExposableException
 from wotv_bot import WotvBotConfig, WotvBot
 from worksheet_utils import WorksheetUtils
 
 # Where the main config file for the bot lives.
 CONFIG_FILE_PATH = 'bot_config.json'
+
+# Where to persist reminders
+REMINDERS_DB_PATH = '.reminders.sql'
 
 # Maximum length of a Discord message. Messages longer than this need to be split up.
 # The actual limit is 2000 characters but there seems to be some formatting inflation that takes place.
@@ -66,6 +70,7 @@ if __name__ == "__main__":
     discord_client = discord.Client()
     global_config = readConfig(CONFIG_FILE_PATH)
     global_config.wotv_bot_config.discord_client = discord_client
+    global_config.wotv_bot_config.reminders = Reminders(REMINDERS_DB_PATH)
     global_config.wotv_bot_config.spreadsheet_app = WorksheetUtils.getSpreadsheetsAppClient()
     wotv_bot = WotvBot(global_config.wotv_bot_config)
     logger = logging.getLogger('discord')
@@ -80,6 +85,7 @@ if __name__ == "__main__":
 async def on_ready():
     """Hook automatically called by the discord client when login is complete."""
     print('Bot logged in: {0.user}'.format(discord_client))
+    global_config.wotv_bot_config.reminders.start(discord_client.loop)
 
 @discord_client.event
 async def on_message(message):

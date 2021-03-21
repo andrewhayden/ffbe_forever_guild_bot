@@ -51,7 +51,7 @@ class CommandContextInfo:
     from_name: str = None # Convenience
     from_id: str = None # Convenience
     from_discrim: str = None # Convenience
-    original_message: str = None # For unusual use cases
+    original_message: discord.Message = None # For unusual use cases
     esper_resonance_manager: EsperResonanceManager = None
     vision_card_manager: VisionCardManager = None
     command_match: Match = None
@@ -107,7 +107,7 @@ class WotvBot:
         """
         return WotvBot.__staticInstance
 
-    async def handleMessage(self, message):
+    async def handleMessage(self, message: discord.Message):
         """Process the request and produce a response."""
         # Bail out early if anything looks insane.
         if message.author == self.wotv_bot_config.discord_client.user:
@@ -558,18 +558,20 @@ class WotvBot:
         return (responseText.strip(), None)
 
     @staticmethod
-    def whimsyShopNrgReminderCallback(target_channel_id: str, from_id: str):
+    async def whimsyShopNrgReminderCallback(target_channel_id: str, from_id: str):
         """Handles a reminder callback for a whimsy shop nrg reminder."""
         discord_client: discord.Client = WotvBot.__getStaticInstance().wotv_bot_config.discord_client
         text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
-        text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(from_id))
+        #discord_client.loop.create_task(text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(from_id)))
+        await text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(from_id))
 
     @staticmethod
-    def whimsyShopSpawnReminderCallback(target_channel_id: str, from_id: str):
+    async def whimsyShopSpawnReminderCallback(target_channel_id: str, from_id: str):
         """Handles a reminder callback for a whimsy shop spawn reminder."""
         discord_client: discord.Client = WotvBot.__getStaticInstance().wotv_bot_config.discord_client
         text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
-        text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(from_id))
+        #discord_client.loop.create_task(text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(from_id)))
+        await text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(from_id))
 
     async def handleWhimsyReminder(self, context: CommandContextInfo) -> (str, str):
         """Handle !whimsy command for a whimsy reminder"""
@@ -579,9 +581,9 @@ class WotvBot:
         print('Whimsy reminder request from user %s#%s, command %s' % (context.from_name, context.from_discrim, command))
         if command == 'set-reminder':
             nrg_callback: callable = WotvBot.whimsyShopNrgReminderCallback
-            nrg_params = [context.original_message.get_channel().id, context.from_id]
+            nrg_params = [context.original_message.channel.id, context.from_id]
             spawn_callback: callable = WotvBot.whimsyShopSpawnReminderCallback
-            spawn_params = [context.original_message.get_channel().id, context.from_id]
+            spawn_params = nrg_params
             self.wotv_bot_config.reminders.addWhimsyReminder(context.from_name, nrg_callback, nrg_params, spawn_callback, spawn_params,
             self.whimsy_shop_nrg_reminder_delay_ms, self.whimsy_shop_spawn_reminder_delay_ms)
             responseText = '<@{0}>: Your reminder has been set.'.format(context.from_id)

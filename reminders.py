@@ -4,18 +4,18 @@ from typing import Dict, List
 from pytz import utc
 import apscheduler
 import apscheduler.triggers.date
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 class Reminders:
     """Reminders functionality for the guild bot"""
     def __init__(self, reminders_database_path: str):
         self.reminders_database_path = reminders_database_path
-        self.scheduler : BackgroundScheduler = None
+        self.scheduler : AsyncIOScheduler = None
 
-    def start(self):
+    def start(self, event_loop):
         """Start the reminder service."""
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = AsyncIOScheduler(event_loop=event_loop)
         self.scheduler.add_jobstore(SQLAlchemyJobStore(url='sqlite:///' + self.reminders_database_path))
         self.scheduler.start()
 

@@ -6,11 +6,8 @@ import asyncio
 import json
 import logging
 import os
-import queue
 import sys
-import time
 import types
-import threading
 from typing import Dict
 
 from admin_utils import AdminUtils
@@ -87,7 +84,7 @@ class WotvBotIntegrationTests:
     """An instance of the bot, configured to manage specific spreadsheets and using Discord and Google credentials."""
     def __init__(self, wotv_bot_config: WotvBotConfig):
         self.wotv_bot_config = wotv_bot_config
-        self.__BOT_REMINDER_CALLBACKS : Dict[str, threading.Semaphore] = {}
+        self.__BOT_REMINDER_CALLBACKS : Dict[str, asyncio.Semaphore] = {}
 
     @staticmethod
     def resetSpreadsheet(spreadsheet_app, spreadsheet_id, sheet_title: str = 'Sheet1'):
@@ -215,9 +212,8 @@ class WotvBotIntegrationTests:
         result.author.id = snowflake_id
         result.author.discriminator = discriminator
         result.content = message_text
-        fake_channel = types.SimpleNamespace()
-        fake_channel.id = WotvBotIntegrationTests.TEST_CHANNEL_ID
-        result.get_channel = lambda: fake_channel
+        result.channel = types.SimpleNamespace()
+        result.channel.id = WotvBotIntegrationTests.TEST_CHANNEL_ID
         if attachment_url is not None:
             attachment = types.SimpleNamespace()
             attachment.url = attachment_url
@@ -999,10 +995,10 @@ class WotvBotIntegrationTests:
         assert reaction is None
         # Now expect the NRG reminder first
         expected_text = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
-        assert WotvBotIntegrationTests.readFromTestChannel() == expected_text
+        assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
         # And the spawn reminder second
         expected_text = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
-        assert WotvBotIntegrationTests.readFromTestChannel() == expected_text
+        assert (await WotvBotIntegrationTests.readFromTestChannel()) == expected_text
 
     async def testCommand_SkillsByName(self):
         """Test searching for skills by name."""
@@ -1181,22 +1177,23 @@ class WotvBotIntegrationTests:
     def cleanupBotReminders(self):
         """Delete the testing reminders SQL database for bot integration testing and restart the reminders system."""
         # Callbacks trigger semaphore release. Tests can then await the semaphores to continue forward.
-        self.wotv_bot_config.reminders.stop()
+        if self.wotv_bot_config.reminders and self.wotv_bot_config.reminders.scheduler:
+            self.wotv_bot_config.reminders.stop()
         self.__BOT_REMINDER_CALLBACKS = {}
-        self.__BOT_REMINDER_CALLBACKS['whimsy-nrg'] = threading.Semaphore(1)
-        self.__BOT_REMINDER_CALLBACKS['whimsy-spawn'] = threading.Semaphore(1)
+        self.__BOT_REMINDER_CALLBACKS['whimsy-nrg'] = asyncio.Semaphore(1)
+        self.__BOT_REMINDER_CALLBACKS['whimsy-spawn'] = asyncio.Semaphore(1)
         if os.path.exists(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH):
             os.remove(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH)
         self.wotv_bot_config.reminders = Reminders(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH)
-        self.wotv_bot_config.reminders.start()
+        self.wotv_bot_config.reminders.start(asyncio.get_event_loop())
 
     @staticmethod
     def cleanupStandaloneReminders():
         """Delete the testing reminders SQL database for standalone reminders testing."""
         # Callbacks trigger semaphore release. Tests can then await the semaphores to continue forward.
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS : Dict[str, threading.Semaphore] = {}
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'] = threading.Semaphore(1)
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'] = threading.Semaphore(1)
+        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS : Dict[str, asyncio.Semaphore] = {}
+        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'] = asyncio.Semaphore(1)
+        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'] = asyncio.Semaphore(1)
         if os.path.exists(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH):
             os.remove(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
 
@@ -1217,7 +1214,7 @@ class WotvBotIntegrationTests:
         # First a fast test that ensures callbacks are executed as expected and parameters are passed.
         WotvBotIntegrationTests.cleanupStandaloneReminders()
         reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
-        reminders.start()
+        reminders.start(asyncio.get_event_loop())
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
         reminders.addWhimsyReminder('foo',
@@ -1246,7 +1243,7 @@ class WotvBotIntegrationTests:
         """Tests that shutting down the reminders subsystem and bringing it back up will not cancel reminders."""
         WotvBotIntegrationTests.cleanupStandaloneReminders()
         reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
-        reminders.start()
+        reminders.start(asyncio.get_event_loop())
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
         print('scheduling reminders and halting the reminders service prematurely')
@@ -1257,10 +1254,10 @@ class WotvBotIntegrationTests:
             nrg_time_ms_override=5000,
             spawn_time_ms_override=5100)
         reminders.stop()
-        time.sleep(1)
+        asyncio.sleep(1)
         print('restarting reminders system and waiting for tasks that were scheduled previously')
         reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
-        reminders.start()
+        reminders.start(asyncio.get_event_loop())
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
 
@@ -1272,7 +1269,7 @@ class WotvBotIntegrationTests:
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
         for i in range (time_secs, 0, -1):
             print('>>> Google API cooldown pause (' + str(time_secs) + 's): ' + str(i) + '...', end='\r', flush=True)
-            time.sleep(1)
+            asyncio.sleep(1)
         print('\n>>> Google API cooldown pause completed, moving on.')
 
     async def runDataFileTests(self):
@@ -1363,22 +1360,25 @@ class WotvBotIntegrationTests:
         await self.testCommand_VcAbility()
 
     # For testing channel message stuff, primarily reminders.
-    __TEST_CHANNEL_MESSAGE_QUEUE: queue.Queue = queue.Queue()
+    __TEST_CHANNEL_MESSAGE_QUEUE: asyncio.Queue = asyncio.Queue()
 
     @staticmethod
-    def sendToTestChannel(content: str):
+    async def sendToTestChannel(content: str):
         """Mock version of discord channel.send"""
-        WotvBotIntegrationTests.__TEST_CHANNEL_MESSAGE_QUEUE.put(content)
+        print('integ test: wrote message to test channel')
+        await WotvBotIntegrationTests.__TEST_CHANNEL_MESSAGE_QUEUE.put(content)
 
     @staticmethod
-    def readFromTestChannel() -> str:
+    async def readFromTestChannel() -> str:
         """Read the next message from the __TEST_CHANNEL_MESSAGE_QUEUE"""
-        return str(WotvBotIntegrationTests.__TEST_CHANNEL_MESSAGE_QUEUE.get())
+        print('integ test: read message from test channel')
+        return str(await WotvBotIntegrationTests.__TEST_CHANNEL_MESSAGE_QUEUE.get())
 
     @staticmethod
     def clearTestChannel():
         """Wipe the existing test message queue."""
-        WotvBotIntegrationTests.__TEST_CHANNEL_MESSAGE_QUEUE = queue.Queue()
+        print('integ test: clear test channel')
+        WotvBotIntegrationTests.__TEST_CHANNEL_MESSAGE_QUEUE = asyncio.Queue()
 
 if __name__ == "__main__":
     if os.path.exists(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH):
@@ -1398,12 +1398,12 @@ if __name__ == "__main__":
     _config.discord_client.user.id = WotvBotIntegrationTests.BOT_SNOWFLAKE_ID
     _config.discord_client.user.discriminator = WotvBotIntegrationTests.BOT_DISCRIMINATOR
     _config.spreadsheet_app = WorksheetUtils.getSpreadsheetsAppClient()
+    _config.discord_client.loop = asyncio.get_event_loop()
     _config.reminders = Reminders(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH)
-    _config.reminders.start()
     # Set up fake handlers for static callbacks for reminders...
     fake_channel = types.SimpleNamespace()
     fake_channel.id = WotvBotIntegrationTests.TEST_CHANNEL_ID
-    fake_channel.send = lambda content : WotvBotIntegrationTests.sendToTestChannel(content)
+    fake_channel.send = WotvBotIntegrationTests.sendToTestChannel
     _config.discord_client.get_channel = lambda channel_id: fake_channel
 
     # And off we go!
