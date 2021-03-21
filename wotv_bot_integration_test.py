@@ -1215,24 +1215,24 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.cleanupStandaloneReminders()
         reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
         reminders.start(asyncio.get_event_loop())
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
-        reminders.addWhimsyReminder('foo',
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        reminders.addWhimsyReminder('foo_name', 'foo_id',
             WotvBotIntegrationTests.standaloneWhimsyNrgReminderCallback, {'whimsy-nrg'},
             WotvBotIntegrationTests.standaloneWhimsySpawnReminderCallback, {'whimsy-spawn'},
             nrg_time_ms_override=1000,
             spawn_time_ms_override=2000)
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
-        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
-        scheduled_reminders = reminders.getWhimsyReminders('foo')
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'].acquire()
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
+        scheduled_reminders = reminders.getWhimsyReminders('foo_id')
         assert scheduled_reminders['nrg'] is None
         assert scheduled_reminders['spawn'] is None
 
         # Now add longer-time (30m, 60m) reminders and test that they are retrievable
-        reminders.addWhimsyReminder('bar',
+        reminders.addWhimsyReminder('bar_name', 'bar_id',
             WotvBotIntegrationTests.standaloneWhimsyNrgReminderCallback, {'whimsy-nrg'},
             WotvBotIntegrationTests.standaloneWhimsySpawnReminderCallback, {'whimsy-spawn'})
-        scheduled_reminders = reminders.getWhimsyReminders('bar')
+        scheduled_reminders = reminders.getWhimsyReminders('bar_id')
         assert scheduled_reminders['nrg'] is not None
         assert scheduled_reminders['spawn'] is not None
 
@@ -1248,7 +1248,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'].acquire()
         print('scheduling reminders and halting the reminders service prematurely')
         # Schedule for 5s from now, then stop the reminders system.
-        reminders.addWhimsyReminder('foo',
+        reminders.addWhimsyReminder('foo_name', 'foo_id',
             WotvBotIntegrationTests.standaloneWhimsyNrgReminderCallback, {'whimsy-nrg'},
             WotvBotIntegrationTests.standaloneWhimsySpawnReminderCallback, {'whimsy-spawn'},
             nrg_time_ms_override=5000,

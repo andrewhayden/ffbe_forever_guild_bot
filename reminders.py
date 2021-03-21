@@ -24,7 +24,7 @@ class Reminders:
         self.scheduler.shutdown(wait=False)
         del self.scheduler
 
-    def addWhimsyReminder(self, owner_name: str, nrg_reminder_callback: callable, nrg_reminder_args: List[str], spawn_reminder_callback: callable,
+    def addWhimsyReminder(self, owner_name: str, owner_id: str, nrg_reminder_callback: callable, nrg_reminder_args: List[str], spawn_reminder_callback: callable,
         spawn_reminder_args: List[str], nrg_time_ms_override: int = None, spawn_time_ms_override: int = None):
         """Add a whimsy shop reminder. Actually a pair of reminders, one for NRG spending and one for whimsy spawning.
 
@@ -32,7 +32,8 @@ class Reminders:
         The second reminder is set for 60 minutes after now, and reminds the user that they can now spawn a new Whimsy shop.
 
         args:
-        owner_name                  name of the owner, used to construct IDs for the reminders.
+        owner_name                  name of the owner, used in the description of the task.
+        ower_id                     unique ID of the owner, used to construct IDs for the reminders.
         nrg_reminder_callback       the callback function (must be a callable) to be invoked for the nrg reminder.
         nrg_reminder_args           positional arguments to be passed to the nrg_reminder_callback.
         spawn_reminder_callback     the callback function (must be a callable) to be invoked for the whimsy spawn reminder.
@@ -43,28 +44,30 @@ class Reminders:
         The nrg reminder will have the name "<owner_name>#whimsy-nrg", i.e. if the owner_name is "bob" then the ID of the reminder is "bob#whimsy-nrg"
         The spawn reminder will have the name "<owner_name>#whimsy-spawn", i.e. if the owner_name is "bob" then the ID of the reminder is "bob#whimsy-spawn"
         """
-        nrg_job_id = owner_name + '#whimsy-nrg'
+        nrg_job_id = owner_id + '#whimsy-nrg'
+        nrg_job_desc = '#whimsy-nrg reminder for ' + owner_name + ' (id=' + owner_name + ')'
         now = datetime.datetime.now(tz=utc)
         nrg_execute_at = now + datetime.timedelta(minutes=30)
         if nrg_time_ms_override:
             nrg_execute_at = now + datetime.timedelta(milliseconds=nrg_time_ms_override)
-        spawn_job_id = owner_name + '#whimsy-spawn'
+        spawn_job_id = owner_id + '#whimsy-spawn'
+        spawn_job_desc = '#whimsy-spawn reminder for ' + owner_name + ' (id=' + owner_name + ')'
         spawn_execute_at = now + datetime.timedelta(hours=1)
         if spawn_time_ms_override:
             spawn_execute_at = now + datetime.timedelta(milliseconds=spawn_time_ms_override)
         self.scheduler.add_job(nrg_reminder_callback, trigger='date', run_date=nrg_execute_at, args=nrg_reminder_args, kwargs=None,
-            id=nrg_job_id, name=nrg_job_id, misfire_grace_time=30*60, coalesce=True, max_instances=1, replace_existing=True)
+            id=nrg_job_id, name=nrg_job_desc, misfire_grace_time=30*60, coalesce=True, max_instances=1, replace_existing=True)
         self.scheduler.add_job(spawn_reminder_callback, trigger='date', run_date=spawn_execute_at, args=spawn_reminder_args, kwargs=None,
-            id=spawn_job_id, name=spawn_job_id, misfire_grace_time=30*60, coalesce=True, max_instances=1, replace_existing=True)
+            id=spawn_job_id, name=spawn_job_desc, misfire_grace_time=30*60, coalesce=True, max_instances=1, replace_existing=True)
 
-    def getWhimsyReminders(self, owner_name) -> Dict[str, apscheduler.job.Job]:
-        """Fetch any whimsy reminders outstanding for the specified owner.
+    def getWhimsyReminders(self, owner_id: str) -> Dict[str, apscheduler.job.Job]:
+        """Fetch any whimsy reminders outstanding for the specified owner id.
 
         The returned dictionary contains 2 entries:
             'nrg':  <the NRG reminder, or None if there is no such reminder or the reminder has expired.>
             'spawn': <the spawn reminder, or None if there is no such reminder or the reminder has expired.>
         """
         return {
-            'nrg': self.scheduler.get_job(owner_name + '#whimsy-nrg'),
-            'spawn': self.scheduler.get_job(owner_name + '#whimsy-spawn'),
+            'nrg': self.scheduler.get_job(owner_id + '#whimsy-nrg'),
+            'spawn': self.scheduler.get_job(owner_id + '#whimsy-spawn'),
         }
