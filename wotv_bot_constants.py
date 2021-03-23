@@ -24,6 +24,8 @@ class WotvBotConstants:
     RES_FETCH_OTHER_PATTERN = re.compile(
         r'^!res(?:onance)?-lookup (\S+) (.+)/(.+)$')
 
+    ROLLDICE_PATTERN = re.compile(r'^!roll (?P<dice_spec>.+)?$')
+
     # Pattern to save a Vision Card to your account, extracting text from an attached screenshot.
     VISION_CARD_SET_PATTERN = re.compile(r'^!vc-set$')
 

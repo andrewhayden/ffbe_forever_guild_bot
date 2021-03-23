@@ -8,13 +8,14 @@ import logging
 import os
 import sys
 import types
-from typing import Dict
+from typing import Dict, List
 
 from admin_utils import AdminUtils
 from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils
 from esper_resonance_manager import EsperResonanceManager
 from reminders import Reminders
+from rolling import DiceSpec, Rolling
 from vision_card_ocr_utils import VisionCardOcrUtils
 from wotv_bot import WotvBot, WotvBotConfig
 from worksheet_utils import WorksheetUtils
@@ -1353,6 +1354,51 @@ class WotvBotIntegrationTests:
         reminders.stop()
 
     @staticmethod
+    async def testStandaloneRolling():
+        """Test rolling of dice on their own, without the bot."""
+        for _ in range (0, 100):
+            rolls: List[int] = Rolling.rollDice(DiceSpec.parse("1d6"))
+            assert len(rolls) == 1
+            assert 1 <= rolls[0] <= 6
+        try:
+            Rolling.rollDice(DiceSpec.parse("0d7"))
+            raise Exception('parsed invalid dice spec: num dice < 1')
+        except ExposableException:
+            pass
+        try:
+            Rolling.rollDice(DiceSpec.parse("2d0"))
+            raise Exception('parsed invalid dice spec: num sides < 1')
+        except ExposableException:
+            pass
+        try:
+            Rolling.rollDice(DiceSpec.parse("16d1"))
+            raise Exception('parsed invalid dice spec: num sides < 2')
+        except ExposableException:
+            pass
+        try:
+            Rolling.rollDice(DiceSpec.parse("ddd"))
+            raise Exception('parsed invalid dice spec: junk text')
+        except ExposableException:
+            pass
+
+    async def testCommand_Roll(self):
+        """Test rolling of dice via the bot."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Rolled a total of '
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!roll 2d6'))
+        assert response_text.startswith(expected_text)
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!roll 49d55'))
+        assert response_text.startswith(expected_text)
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Too many dice in !roll command'
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!roll 51d2'))
+        assert response_text.startswith(expected_text)
+        try:
+            (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!roll 0d2'))
+            raise Exception("Rolled invalid dice...")
+        except ExposableException:
+            pass
+
+    @staticmethod
     async def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
         for i in range (time_secs, 0, -1):
@@ -1404,6 +1450,10 @@ class WotvBotIntegrationTests:
         await self.testVisionCardOcrUtils_ExtractVisionCardFromScreenshot()
         print('>>> Test: testCommand_WhoAmI')
         await self.testCommand_WhoAmI() # Doesn't call remote APIs, no cooldown required.
+        print ('>>> Test: testStandaloneRolling')
+        await self.testStandaloneRolling()
+        print ('>>> Test: testCommand_Roll')
+        await self.testCommand_Roll()
 
     async def runAllTests(self):
         """Run all tests in the integration test suite."""

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import io
 from re import Match
+from typing import List
 
 import discord
 
@@ -10,12 +11,13 @@ from admin_utils import AdminUtils
 from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult, UnitJobSearchResult, UnitSearchResult
 from data_file_core_classes import WotvUnit
-from wotv_bot_constants import WotvBotConstants
-from vision_card_ocr_utils import VisionCardOcrUtils
 from esper_resonance_manager import EsperResonanceManager
+from reminders import Reminders
+from rolling import DiceSpec, Rolling
+from vision_card_ocr_utils import VisionCardOcrUtils
 from vision_card_manager import VisionCardManager
 from wotv_bot_common import ExposableException
-from reminders import Reminders
+from wotv_bot_constants import WotvBotConstants
 
 class DiscordSafeException(ExposableException):
     """An exception whose error text is safe to show in Discord."""
@@ -190,6 +192,10 @@ class WotvBot:
         match = WotvBotConstants.WHIMSY_REMINDER_PATTERN.match(first_line_lower)
         if match:
             return await self.handleWhimsyReminder(context.shallowCopy().withMatch(match))
+
+        match = WotvBotConstants.ROLLDICE_PATTERN.match(first_line_lower)
+        if match:
+            return await self.handleRoll(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if first_line_lower.startswith('!whoami'):
@@ -620,3 +626,17 @@ class WotvBot:
             reminders.cancelWhimsyReminders(owner_id)
             responseText = '<@{0}>: Any and all outstanding whimsy reminders have been canceled.'.format(context.from_id)
         return (responseText, None)
+
+    async def handleRoll(self, context: CommandContextInfo) -> (str, str):
+        """Handle !roll command to simulate a dice roll."""
+        spec: DiceSpec = DiceSpec.parse(context.command_match.group('dice_spec'))
+        print('Dice roll request from user %s#%s, spec %s' % (context.from_name, context.from_discrim, str(spec)))
+        if spec.num_dice > 50:
+            responseText = '<@{0}>: Too many dice in !roll command (max 50). Use !help for for more information.'.format(context.from_id)
+        else:
+            results: List[int] = Rolling.rollDice(spec)
+            total = 0
+            for one_roll in results:
+                total += one_roll
+            responseText = '<@{0}>: Rolled a total of {1}. Dice values were: {2}'.format(context.from_id, str(total), str(results))
+        return (responseText.strip(), None)
