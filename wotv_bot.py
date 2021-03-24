@@ -12,6 +12,7 @@ from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult, UnitJobSearchResult, UnitSearchResult
 from data_file_core_classes import WotvUnit
 from esper_resonance_manager import EsperResonanceManager
+from predictions import Predictions
 from reminders import Reminders
 from rolling import DiceSpec, Rolling
 from vision_card_ocr_utils import VisionCardOcrUtils
@@ -98,6 +99,8 @@ class WotvBot:
         WotvBot.__staticInstance = self
         self.whimsy_shop_nrg_reminder_delay_ms: int = 30*60*1000 # 30 minutes
         self.whimsy_shop_spawn_reminder_delay_ms: int = 60*60*1000 # 60 minutes
+        self.predictions = Predictions('predictions.txt')
+        self.predictions.refreshPredictions()
 
     @staticmethod
     def __getStaticInstance():
@@ -196,6 +199,20 @@ class WotvBot:
         match = WotvBotConstants.ROLLDICE_PATTERN.match(first_line_lower)
         if match:
             return await self.handleRoll(context.shallowCopy().withMatch(match))
+
+        # Predictions
+        match = WotvBotConstants.PREDICTION_PATTERN_1.match(first_line_lower)
+        if match:
+            return await self.handlePrediction(context.shallowCopy().withMatch(match))
+        match = WotvBotConstants.PREDICTION_PATTERN_2.match(first_line_lower)
+        if match:
+            return await self.handlePrediction(context.shallowCopy().withMatch(match))
+        match = WotvBotConstants.PREDICTION_PATTERN_3.match(first_line_lower)
+        if match:
+            return await self.handlePrediction(context.shallowCopy().withMatch(match))
+        match = WotvBotConstants.PREDICTION_PATTERN_4.match(first_line_lower)
+        if match:
+            return await self.handlePrediction(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if first_line_lower.startswith('!whoami'):
@@ -639,4 +656,11 @@ class WotvBot:
             for one_roll in results:
                 total += one_roll
             responseText = '<@{0}>: Rolled a total of {1}. Dice values were: {2}'.format(context.from_id, str(total), str(results))
+        return (responseText.strip(), None)
+
+    async def handlePrediction(self, context: CommandContextInfo) -> (str, str):
+        """Handle !predict/astronlogize/divine/fortell (etc) command to make a funny prediction."""
+        query = context.command_match.group('query')
+        print('Prediction request from user %s#%s, query %s' % (context.from_name, context.from_discrim, str(query)))
+        responseText = '<@{0}>: {1}'.format(context.from_id, self.predictions.predict(query))
         return (responseText.strip(), None)

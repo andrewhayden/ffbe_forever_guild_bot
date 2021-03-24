@@ -24,7 +24,14 @@ class WotvBotConstants:
     RES_FETCH_OTHER_PATTERN = re.compile(
         r'^!res(?:onance)?-lookup (\S+) (.+)/(.+)$')
 
+    # Pattern for rolling dice like in D&D, e.g. "!roll 3d6#
     ROLLDICE_PATTERN = re.compile(r'^!roll (?P<dice_spec>.+)?$')
+
+    # Patterns to ask for a prediction
+    PREDICTION_PATTERN_1 = re.compile(r'^!predict ?(?P<query>.+)?$')
+    PREDICTION_PATTERN_2 = re.compile(r'^!astrologize ?(?P<query>.+)?$')
+    PREDICTION_PATTERN_3 = re.compile(r'^!divine ?(?P<query>.+)?$')
+    PREDICTION_PATTERN_4 = re.compile(r'^!foretell ?(?P<query>.+)?$')
 
     # Pattern to save a Vision Card to your account, extracting text from an attached screenshot.
     VISION_CARD_SET_PATTERN = re.compile(r'^!vc-set$')

@@ -1,4 +1,11 @@
 # Commands
+`!astrologize/!divine/!foretell/!predict <question>`
+> Ask the bot a question, and see what it says!
+<br> Example *!predict Will I pull the latest time-limited unit?*
+<br> Example *!astrologize Will we be victorious?*
+<br> Example *!divine What books room should we run?*
+<br> Example *!foretell How many days till UR Learte?*
+
 `!resonance unit-name/esper-name`
 > Get **your own** resonance for the named unit and esper.
 <br> Example: *!resonance mont/cactuar*
@@ -14,6 +21,12 @@
 `!resonance-lookup discord-nickname unit-name/esper-name`
 > Get **someone else's** resonance for the named unit and esper. Unlike !resonance and !resonance-set, the discord-nickname here is not resolved against the user's snowflake ID. Put another way, it's just the name of the tab in the spreadsheet. This can access data of a former guild members, if your guild leader hasn't deleted it.
 <br> Example: *!resonance-lookup JohnDoe mont/cactuar*
+
+`!roll <dice>`
+> Roll some dice. The syntax is the number of dice, the letter 'd', and the number of sides on each die. Maximum 50 dice at once, to prevent abuse (and because that's a lot of dice for the bot to keep track of...) Examples:
+<br> To roll 3 6-sided dice: *!roll 3d6*
+<br> To roll 2 9-sided dice: *!roll 2d9*
+<br> To roll 17 19-sided dice: *!roll 17d19*
 
 `!skills-by-name`
 > Deprecated. Use `!unit-search skill-name [search_text]` instead.

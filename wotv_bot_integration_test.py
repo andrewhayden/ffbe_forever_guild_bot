@@ -14,6 +14,7 @@ from admin_utils import AdminUtils
 from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils
 from esper_resonance_manager import EsperResonanceManager
+from predictions import Predictions
 from reminders import Reminders
 from rolling import DiceSpec, Rolling
 from vision_card_ocr_utils import VisionCardOcrUtils
@@ -1042,14 +1043,14 @@ class WotvBotIntegrationTests:
         wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 2000
         self.cleanupBotReminders()
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Any and all outstanding whimsy reminders have been canceled.'
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy cancel'))
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy cancel'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         # Check that there's no reminder left after everything is done...
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: You do not currently have a whimsy reminder set.'
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
 
     async def testCommand_Whimsy_When(self):
@@ -1381,6 +1382,90 @@ class WotvBotIntegrationTests:
         except ExposableException:
             pass
 
+    @staticmethod
+    def assertIn(expected: set, actual):
+        """Assert that the expected values is in the expected set or fail with a helpful message"""
+        assert actual in expected, 'expected one of "' + str(expected) + '", got "' + str(actual) + '"'
+
+    @staticmethod
+    async def testStandalonePredictions():
+        """Test simple predictions, without the bot."""
+        # First just make sure loading works.
+        predictions = Predictions("predictions.txt")
+        predictions.refreshPredictions()
+        # Now load up some junk and make sure it functions as we expect.
+        test_text = ''
+        test_text += '   foo_prediction #foo\n'
+        test_text += 'bar_prediction      #bar\n'
+        test_text += ' generic_prediction1 \n'
+        test_text += ' generic_prediction2 \n\n\n  \n \n'
+        test_text += '# some comments and\n'
+        test_text += ' # some additional comments... # with hashtags...\n'
+        test_text += 'shared_prediction1 #shared\n'
+        test_text += 'shared_prediction2 #shared\n'
+        test_text += 'many_tag_prediction #abcd #efgh #ijkl\n'
+        test_text += '   multi_word_prediction #multi_word_prediction\n'
+        predictions.setPredictions(test_text.splitlines())
+
+        expected_text = 'foo_prediction'
+        for _ in range (0, 10):
+            response_text = predictions.predict('I have many questions about foo. What is the nature of foo? Is foo eternal?')
+            WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+
+        # Test underscore-to-space matching magic.
+        expected_text = 'multi_word_prediction'
+        for _ in range (0, 10):
+            response_text = predictions.predict('This should match the multi word prediction')
+            WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+
+        expected_text = 'bar_prediction'
+        for _ in range (0, 10):
+            response_text = predictions.predict('I have many questions about bar. Whither bar? Is bar quantum? Indubitably.')
+            WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+
+        expected_text = 'many_tag_prediction'
+        WotvBotIntegrationTests.assertEqual(expected_text, predictions.predict('What about abcd?'))
+        WotvBotIntegrationTests.assertEqual(expected_text, predictions.predict('What about efgh?'))
+        WotvBotIntegrationTests.assertEqual(expected_text, predictions.predict('What about ijkl?'))
+
+        expected_text = set(['shared_prediction1', 'shared_prediction2'])
+        count_1 = 0
+        count_2 = 0
+        for _ in range (0, 100):
+            response_text = predictions.predict('Pie is best when shared.')
+            WotvBotIntegrationTests.assertIn(expected_text, response_text)
+            if response_text == 'shared_prediction1':
+                count_1 += 1
+            else:
+                count_2 += 1
+        assert count_1 > 0 and count_2 > 0
+
+        # Ensure generic predictions are used when no tags match.
+        expected_text = set(['generic_prediction1', 'generic_prediction2'])
+        count_1 = 0
+        count_2 = 0
+        for _ in range (0, 100):
+            response_text = predictions.predict('This is a generic question')
+            WotvBotIntegrationTests.assertIn(expected_text, response_text)
+            if response_text == 'generic_prediction1':
+                count_1 += 1
+            else:
+                count_2 += 1
+        assert count_1 > 0 and count_2 > 0
+
+        # Ensure generic predictions are used when no text is specified at all.
+        expected_text = set(['generic_prediction1', 'generic_prediction2'])
+        count_1 = 0
+        count_2 = 0
+        for _ in range (0, 100):
+            response_text = predictions.predict()
+            WotvBotIntegrationTests.assertIn(expected_text, response_text)
+            if response_text == 'generic_prediction1':
+                count_1 += 1
+            else:
+                count_2 += 1
+        assert count_1 > 0 and count_2 > 0
+
     async def testCommand_Roll(self):
         """Test rolling of dice via the bot."""
         wotv_bot = WotvBot(self.wotv_bot_config)
@@ -1397,6 +1482,28 @@ class WotvBotIntegrationTests:
             raise Exception("Rolled invalid dice...")
         except ExposableException:
             pass
+
+    async def testCommand_Prediction(self):
+        """Test rolling of dice via the bot."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!predict'))
+        print(response_text) # For fun!
+        assert response_text is not None and response_text.find('Invalid or unknown command.') == -1
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!astrologize'))
+        print(response_text) # For fun!
+        assert response_text is not None and response_text.find('Invalid or unknown command.') == -1
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!divine'))
+        print(response_text) # For fun!
+        assert response_text is not None and response_text.find('Invalid or unknown command.') == -1
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!foretell'))
+        print(response_text) # For fun!
+        assert response_text is not None and response_text.find('Invalid or unknown command.') == -1
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!predict will I pull 2B?'))
+        print(response_text) # For fun!
+        assert response_text is not None and response_text.find('Invalid or unknown command.') == -1
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!foretell the air speed velocity of an unladen swallow?'))
+        print(response_text) # For fun!
+        assert response_text is not None and response_text.find('African or a European') > 0
 
     @staticmethod
     async def cooldown(time_secs: int=30):
@@ -1452,8 +1559,12 @@ class WotvBotIntegrationTests:
         await self.testCommand_WhoAmI() # Doesn't call remote APIs, no cooldown required.
         print ('>>> Test: testStandaloneRolling')
         await self.testStandaloneRolling()
+        print ('>>> Test: testStandalonePredictions')
+        await self.testStandalonePredictions()
         print ('>>> Test: testCommand_Roll')
         await self.testCommand_Roll()
+        print ('>>> Test: testCommand_Prediction')
+        await self.testCommand_Prediction()
 
     async def runAllTests(self):
         """Run all tests in the integration test suite."""

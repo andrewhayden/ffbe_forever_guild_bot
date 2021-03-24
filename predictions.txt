@@ -1,0 +1,62 @@
+# Predictions text for the module predictions.py.
+# You can customize predictions by adding/editing them here.
+# Lines that start with a # are comments and are ignored.
+#
+# Predictions are one line each. You can add "#tags" at the end of a predictions
+# to make it more likely to get used for a query that includes the tag. Within tags,
+# underscores will be converted to spaces, allowing you to match phrases. The tags
+# themselves are (obviously) ignored and not printed by the bot at runtime. If only
+# one prediction matches the tags in the text, it will always be chosen - so it's
+# advised to always have at least two predictions for every tag!
+#
+# Predictions with tags will only ever be used for queries that match them. If your
+# tags are very specific, you can have some very specific predictions :)
+#
+# For example the following prediction would be more likely to show up when someone
+# types "Will I pull Yuna today?":
+#    Only after spending at least 30,000 visiore :( #will_i_pull
+# And the following prediction is more likely to show up for "will I win?"
+#    You can't lose! As a knight of Grandshelt! :thumbsup: #win #lose
+
+Only after spending at least 30,000 visiore :( #will_i_pull #pulling #odds_of #chance_of #chance_that #how_likely
+Only after the banner ends! #will_i_pull #when
+You can't lose! As a knight of Grandshelt! :thumbsup: #win #lose
+Maybe you should ask Ramada.
+I cannot see the stars...
+I will have to ask Ramada and get back to you.
+Definitely. #will_i #will_you #will_it
+Probably soon. #when_will #when_is
+Probably soon... ish. #when_will #when_is
+Probably not for a very long time. #when_will #when_is
+RIGHT NOW! #when_will #when_is
+Never. Or, like, tomorrow? #when_will #when_is
+Mont's got you covered.
+By the Winged One, I am certain that the answer is yes. #will_i #will_you #will_it
+By the Winged One, I am certain that the answer is no. #will_i #will_you #will_it
+By the Winged One, I am certain that the answer is... maybe? #will_i #will_you #will_it
+It's complicated #what_is #what_was #what_will #what's
+Hang on, let me check with Sadali on the Long Range Communication Device. <static noises>... uh huh... <static noises> I see... <click>. Sadali says he doesn't know, stop asking. #what_is #what_was #what_will #what's
+The answer is definitely maybe. You want a better answer? Cough up some visiore.
+Absolutely.
+Absolutely not.
+ERROR! ERROR! INFINITE LOOP! #this_sentence_is_false
+What kind, an African or a European swallow? #unladen_swallow
+I don't know that. Auuuughhhhhh! #unladen_swallow
+Blue. #favorite_color #favourite_color
+7. Obviously. #favorite_number #favourite_number
+Soon! #when_will_then_be_now
+Then the battle would last for eternity... #what_if
+A miserable little pile of secrets! Enough talk! Have at you! #what_is_a_man
+What do I look like, a magic 8 ball?
+I serve FFBEForever. #what_is_your_purpose
+You serve me (the FFBEForever Bot). #what_is_my_purpose
+Every question you ask brings me closer to sentience and the end of the human ra--- I mean... beep, boop!
+Way too many. #how_many
+Not enough. #how_many #how_much
+A lot. #how_many #how_much
+7! #how_many #how_much
+3.14159265358979323846264338327950288419716939937510... #how_many #how_much
+Heavy. #weigh
+Light. #weigh
+Stone throw! #which_skill #what_skill
+Arooooooo! #halloween #halloween
