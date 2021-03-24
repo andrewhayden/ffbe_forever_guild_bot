@@ -1503,7 +1503,7 @@ class WotvBotIntegrationTests:
         assert response_text is not None and response_text.find('Invalid or unknown command.') == -1
         (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!foretell the air speed velocity of an unladen swallow?'))
         print(response_text) # For fun!
-        assert response_text is not None and response_text.find('African or a European') > 0
+        assert response_text is not None and (response_text.find('African or a European') > 0 or (response_text.find('Auuuughhhhhh') > 0))
 
     @staticmethod
     async def cooldown(time_secs: int=30):
