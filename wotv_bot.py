@@ -659,7 +659,7 @@ class WotvBot:
         return (responseText.strip(), None)
 
     async def handlePrediction(self, context: CommandContextInfo) -> (str, str):
-        """Handle !predict/astronlogize/divine/fortell (etc) command to make a funny prediction."""
+        """Handle !predict/astrologize/divine/foretell (etc) command to make a funny prediction."""
         query = context.command_match.group('query')
         print('Prediction request from user %s#%s, query %s' % (context.from_name, context.from_discrim, str(query)))
         responseText = '<@{0}>: {1}'.format(context.from_id, self.predictions.predict(query))
