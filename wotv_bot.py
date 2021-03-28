@@ -677,13 +677,13 @@ class WotvBot:
     async def handleSchedule(self, context: CommandContextInfo) -> (str, str):
         """Handle a request for the weekly schedule."""
         print('Schedule request from user %s#%s' % (context.from_name, context.from_discrim))
-        responseText = '<@{0}>: {1}'.format(context.from_id, WeeklyEventSchedule.getDoubleDropRateSchedule('** >> ', ' << **'))
+        responseText = '<@{0}>:\n{1}'.format(context.from_id, WeeklyEventSchedule.getDoubleDropRateSchedule('** >> ', ' << **'))
         return (responseText.strip(), None)
 
     async def handleMats(self, context: CommandContextInfo) -> (str, str):
         """Handle a request for the current double-drop rate room."""
         print('Mats request from user %s#%s' % (context.from_name, context.from_discrim))
-        responseText = '<@{0}>: '.format(context.from_id)
+        responseText = '<@{0}>:\n'.format(context.from_id)
         responseText += 'Today: ' + WeeklyEventSchedule.getTodaysDoubleDropRateEvents() + '\n'
         responseText += 'Tomorrow: ' + WeeklyEventSchedule.getTomorrowsDoubleDropRateEvents() + '\n'
         responseText += 'For the full schedule, use !schedule.'
