@@ -23,6 +23,14 @@
       {
         "key": "JB_LW_MNK_SHINE",
         "value": "Monk"
-      }    
+      },
+      {
+        "key": "JB_LW_PLD_WATER",
+        "value": "Paladin"
+      },
+      {
+        "key": "JB_LW_SAM_WATER",
+        "value": "Samurai"
+      }
     ]
 }

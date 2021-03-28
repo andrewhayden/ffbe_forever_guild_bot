@@ -1,0 +1,34 @@
+{
+  "unit_name_fixups": [
+    {
+      "key": "UN_FF10_P_TIDU",
+      "value": "Tidus"
+    }
+  ],
+  "job_name_fixups": [
+    {
+      "key": "JB_FF10_TIDU",
+      "value": "Abes' Star Player"
+    }
+  ],
+  "skill_description_fixups": [
+    {
+      "key": "SK_MA_FF10_TIDU",
+      "value": "Increase HP (10%) for water ally, Increase water ATK (15) for water ally, Increase defense penetration (20) for self"
+    },
+    {
+      "key": "SK_LB_FF10_TIDU",
+      "value": "4-hit Damage (L)"
+    }
+  ],
+  "skill_name_fixups": [
+    {
+      "key": "SK_MA_FF10_TIDU",
+      "value": "Master Ability"
+    },
+    {
+      "key": "SK_LB_FF10_TIDU",
+      "value": "Blitz Ace"
+    }
+  ]
+}

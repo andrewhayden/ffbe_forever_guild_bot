@@ -713,12 +713,22 @@ class WotvBotIntegrationTests:
 
         # Test exact match with a Master Ability
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, '"Master A"')
-        assert len(matches) == 2
-        assert matches[0].unit.name == 'Mont Leonis'
+        assert len(matches) == 4
+        WotvBotIntegrationTests.assertEqual('Mont Leonis', matches[0].unit.name)
         assert matches[0].skill.name == 'Master Ability'
         assert matches[0].is_master_ability is True
         assert matches[0].board_skill is None
-        assert matches[1].unit.name == 'Engelbert'
+        WotvBotIntegrationTests.assertEqual('Engelbert', matches[1].unit.name)
+        assert matches[1].skill.name == 'Master Ability'
+        assert matches[1].is_master_ability is True
+        assert matches[0].is_limit_burst is False
+        assert matches[1].board_skill is None
+        WotvBotIntegrationTests.assertEqual('Tidus', matches[2].unit.name)
+        assert matches[1].skill.name == 'Master Ability'
+        assert matches[1].is_master_ability is True
+        assert matches[0].is_limit_burst is False
+        assert matches[1].board_skill is None
+        WotvBotIntegrationTests.assertEqual('[Missing name, id=UN_FF10_P_YUNA]', matches[3].unit.name)
         assert matches[1].skill.name == 'Master Ability'
         assert matches[1].is_master_ability is True
         assert matches[0].is_limit_burst is False
@@ -740,9 +750,11 @@ class WotvBotIntegrationTests:
 
         # Test fuzzy match with a Master Ability
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'MaStEr')
-        assert len(matches) == 2
+        assert len(matches) == 4
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[1].unit.name == 'Engelbert'
+        assert matches[2].unit.name == 'Tidus'
+        WotvBotIntegrationTests.assertEqual('[Missing name, id=UN_FF10_P_YUNA]', matches[3].unit.name)
 
         # Test fuzzy match with a Limit Burst
         matches = DataFileSearchUtils.findUnitWithSkillName(data_files, 'Destiny')
@@ -832,11 +844,13 @@ class WotvBotIntegrationTests:
         data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
         # Test exact match
         matches = DataFileSearchUtils.findUnitWithJobName(data_files, '"Paladin"')
-        assert len(matches) == 2
+        assert len(matches) == 3
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].job.name == 'Paladin'
         assert matches[1].unit.name == 'Engelbert'
         assert matches[1].job.name == 'Paladin'
+        assert matches[2].unit.name == 'Tidus'
+        assert matches[2].job.name == 'Paladin'
         matches = DataFileSearchUtils.findUnitWithJobName(data_files, '"Lord"')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
@@ -844,11 +858,13 @@ class WotvBotIntegrationTests:
 
         # Test fuzzy match
         matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'ladin')
-        assert len(matches) == 2
+        assert len(matches) == 3
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].job.name == 'Paladin'
         assert matches[1].unit.name == 'Engelbert'
         assert matches[1].job.name == 'Paladin'
+        assert matches[2].unit.name == 'Tidus'
+        assert matches[2].job.name == 'Paladin'
         matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'onk')
         assert len(matches) == 1
         assert matches[0].unit.name == 'Engelbert'
@@ -856,9 +872,10 @@ class WotvBotIntegrationTests:
 
         # Test using an explicitly-passed list (as if a filtered list of units had been provided)
         matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'ladin')
-        assert len(matches) == 2
+        assert len(matches) == 3
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[1].unit.name == 'Engelbert'
+        assert matches[2].unit.name == 'Tidus'
         matches = matches[1:2] # Just Engelbert
         matches = DataFileSearchUtils.findUnitWithJobName(data_files, 'ladin', matches)
         assert len(matches) == 1
@@ -871,12 +888,16 @@ class WotvBotIntegrationTests:
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         matches = DataFileSearchUtils.findUnitWithRarity(data_files, 'ur')
-        assert len(matches) == 1
+        assert len(matches) == 3
         assert matches[0].unit.name == 'Engelbert'
+        assert matches[1].unit.name == 'Tidus'
+        assert matches[2].unit.name == '[Missing name, id=UN_FF10_P_YUNA]'
         # Test de-quoting exact-match string (no-op functionality since fuzzy-match is not supported, but should not cause problems)
         matches = DataFileSearchUtils.findUnitWithRarity(data_files, '"ur"')
-        assert len(matches) == 1
+        assert len(matches) == 3
         assert matches[0].unit.name == 'Engelbert'
+        assert matches[1].unit.name == 'Tidus'
+        assert matches[2].unit.name == '[Missing name, id=UN_FF10_P_YUNA]'
         # Test junk rarity
         matches = DataFileSearchUtils.findUnitWithRarity(data_files, 'xx')
         assert not matches
@@ -898,12 +919,14 @@ class WotvBotIntegrationTests:
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         matches = DataFileSearchUtils.findUnitWithElement(data_files, 'LigHt')
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Engelbert'
+        assert matches[1].unit.name == '[Missing name, id=UN_FF10_P_YUNA]'
         # Test de-quoting exact-match string (no-op functionality since fuzzy-match is not supported, but should not cause problems)
         matches = DataFileSearchUtils.findUnitWithElement(data_files, '"light"')
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Engelbert'
+        assert matches[1].unit.name == '[Missing name, id=UN_FF10_P_YUNA]'
         # Test junk element
         matches = DataFileSearchUtils.findUnitWithElement(data_files, 'xx')
         assert not matches
@@ -920,11 +943,13 @@ class WotvBotIntegrationTests:
         data_files = DataFiles.parseDataDump(WotvBotIntegrationTests.MOCK_DATA_DUMP_ROOT_PATH + '/')
         # Base case: No refinements. Also test that search type result is appropriate for "job" base search.
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin')
-        assert len(matches) == 2
+        assert len(matches) == 3
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[1].unit.name == 'Engelbert'
+        assert matches[2].unit.name == 'Tidus'
         assert matches[0].job.name == 'Paladin'
         assert matches[1].job.name == 'Paladin'
+        assert matches[2].job.name == 'Paladin'
 
         # Test that search type result is appropriate for "skill" base search.
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'skill-name', 'Killer Blade')
@@ -935,54 +960,68 @@ class WotvBotIntegrationTests:
 
         # Base case: No refinements, search ALL units. Should just be unit search results, no skill or job data.
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'all', None)
-        assert len(matches) == 2
+        assert len(matches) == 4
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[1].unit.name == 'Engelbert'
+        assert matches[2].unit.name == 'Tidus'
+        assert matches[3].unit.name == '[Missing name, id=UN_FF10_P_YUNA]'
         assert not hasattr(matches[0], 'job')
         assert not hasattr(matches[0], 'is_master_ability')
         assert not hasattr(matches[1], 'job')
         assert not hasattr(matches[1], 'is_master_ability')
+        assert not hasattr(matches[2], 'job')
+        assert not hasattr(matches[2], 'is_master_ability')
+        assert not hasattr(matches[3], 'job')
+        assert not hasattr(matches[3], 'is_master_ability')
 
         # Refine to only units with light (Engelbert)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['element light'])
         assert len(matches) == 1
         assert matches[0].unit.name == 'Engelbert'
         assert matches[0].job.name == 'Paladin'
-        # Refine to only units without light (Mont)
+        # Refine to only units without light (Mont, Tidus)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not element light'])
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].job.name == 'Paladin'
+        assert matches[1].unit.name == 'Tidus'
+        assert matches[1].job.name == 'Paladin'
         # Refine to only units with skill name "Killer Blade" (Mont)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['skill-name Killer Blade'])
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].job.name == 'Paladin'
-        # Refine to only units without skill name "Killer Blade" (Engelbert)
+        # Refine to only units without skill name "Killer Blade" (Engelbert, Tidus)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not skill-name Killer Blade'])
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Engelbert'
         assert matches[0].job.name == 'Paladin'
+        assert matches[1].unit.name == 'Tidus'
+        assert matches[1].job.name == 'Paladin'
         # Refine to only units with skill description "Man Eater" (Mont)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['skill-desc "Man eat"'])
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].job.name == 'Paladin'
-        # Refine to only units without skill description "Man Eater" (Engelbert)
+        # Refine to only units without skill description "Man Eater" (Engelbert, Tidus)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not skill-desc eaTer'])
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Engelbert'
         assert matches[0].job.name == 'Paladin'
+        assert matches[1].unit.name == 'Tidus'
+        assert matches[1].job.name == 'Paladin'
         # Refine to only units with rarity MR (Mont)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['rarity MR'])
         assert len(matches) == 1
         assert matches[0].unit.name == 'Mont Leonis'
         assert matches[0].job.name == 'Paladin'
-        # Refine to only units without rarity MR (Engelbert)
+        # Refine to only units without rarity MR (Engelbert, Tidus)
         matches = DataFileSearchUtils.richUnitSearch(data_files, 'job', 'paladin', ['not rarity MR'])
-        assert len(matches) == 1
+        assert len(matches) == 2
         assert matches[0].unit.name == 'Engelbert'
         assert matches[0].job.name == 'Paladin'
+        assert matches[1].unit.name == 'Tidus'
+        assert matches[1].job.name == 'Paladin'
 
     async def testCommand_Whimsy(self):
         """Test creating and managing whimsy shop reminders via the bot."""
@@ -1109,7 +1148,9 @@ class WotvBotIntegrationTests:
         # Test fuzzy match for master ability
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
         expected_text += 'Master ability for Engelbert (UR rarity, Light element): DEF +15\n'
-        expected_text += 'Master ability for Mont Leonis (MR rarity, Earth element): DEF +15, Jump +1'
+        expected_text += 'Master ability for Mont Leonis (MR rarity, Earth element): DEF +15, Jump +1\n'
+        expected_text += 'Master ability for Tidus (UR rarity, Water element): Increase HP (10%) for water ally, Increase water ATK (15) for water ally, Increase defense penetration (20) for self\n'
+        expected_text += 'Master ability for [Missing name, id=UN_FF10_P_YUNA] (UR rarity, Light element): [Missing master ability, id=SK_MA_FF10_YUNA]'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
@@ -1141,10 +1182,11 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
-        # Test refinements: Not earth
+        # Test refinements: Not earth, not water
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
-        expected_text += 'Master ability for Engelbert (UR rarity, Light element): DEF +15'
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master\n  not element earth'))
+        expected_text += 'Master ability for Engelbert (UR rarity, Light element): DEF +15\n'
+        expected_text += 'Master ability for [Missing name, id=UN_FF10_P_YUNA] (UR rarity, Light element): [Missing master ability, id=SK_MA_FF10_YUNA]'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-name Master\n  not element earth  \n not element water'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
 
@@ -1189,10 +1231,10 @@ class WotvBotIntegrationTests:
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc qwyjibo'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
-        # Test refinements: Not earth
+        # Test refinements: Not earth. not water
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Matching Skills:\n'
         expected_text += 'Skill "Sentinel" learned by Engelbert (UR rarity, Light element) with job Paladin at job level 3: Significantly raises own DEF/SPR for 1 turn & significantly lowers Evasion Rate for 1 turn.'
-        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc Evasion Rate\n  not element earth'))
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!skills-by-desc Evasion Rate\n  not element earth\nnot element water'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
         assert reaction is None
         # Test refinements: earth

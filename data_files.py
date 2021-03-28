@@ -19,6 +19,9 @@ class DataFiles:
     PATH_TO_UNIT_DATA = "data/Unit.json"
     PATH_TO_UNIT_NAMES = "en/UnitName.json"
 
+    # The fixups file contains extra fixups checked into source control in the bot project, not the data dump."""
+    PATH_TO_FIXUPS = "fixups.json"
+
     # The elements, by their 0-based IDs.
     ELEMENT_NAME_BY_ID: Dict(int, str) = {
         0: 'None', # Non-element units do exist in the data as of 2020-12-05, such as Muraga Fennes.
@@ -71,6 +74,7 @@ class DataFiles:
         json_skill_names = None
         json_unit_data = None
         json_unit_names = None
+        json_fixups = None
 
         with open(data_dump_root_path + DataFiles.PATH_TO_ABILITY_BOARDS) as input_file:
             json_ability_boards = json.load(input_file)
@@ -84,53 +88,131 @@ class DataFiles:
             json_unit_data = json.load(input_file)
         with open(data_dump_root_path + DataFiles.PATH_TO_UNIT_NAMES) as input_file:
             json_unit_names = json.load(input_file)
+        with open(DataFiles.PATH_TO_FIXUPS) as input_file:
+            # Local to the bot's source directory, not the data dump
+            json_fixups = json.load(input_file)
+
         # Build from the leaf nodes back towards the roots, that is, from the things that are fully defined (such as a skill)
         # upwards towards the things that use them (board skills, ability boards, units).
 
         # Start with the raw set of all skills in the game (including unit skills, enemy skills, etc)
         result_skills_by_id: Dict[str, WotvSkill] = {}
         temp_all_skill_descriptions_by_id = {}
+        num_skill_description_fixups_applied = 0
+        num_skill_name_fixups_applied = 0
         for json_entry in json_skill_descriptions['infos']:
             temp_all_skill_descriptions_by_id[json_entry['key']] = json_entry['value']
+        for json_entry in json_fixups['skill_description_fixups']:
+            key = json_entry['key']
+            value = json_entry['value']
+            if key in temp_all_skill_descriptions_by_id:
+                print('WARNING: Fixup no longer required but still specified for skill description of skill ' + key + ' (' + value + ')')
+            else:
+                print('Fixup applied: skill ' + key + ' has description ' + value)
+                num_skill_description_fixups_applied += 1
+                temp_all_skill_descriptions_by_id[key] = value
         for json_entry in json_skill_names['infos']: # Array of JSON objects representing skills.
             parsed = WotvSkill()
             parsed.unique_id = json_entry['key']
             parsed.name = json_entry['value']
             parsed.description = temp_all_skill_descriptions_by_id[parsed.unique_id]
             result_skills_by_id[parsed.unique_id] = parsed
-        print('Discovered ' + str(len(result_skills_by_id)) + ' skills.')
+        for json_entry in json_fixups['skill_name_fixups']:
+            parsed = WotvSkill()
+            parsed.unique_id = json_entry['key']
+            parsed.name = json_entry['value']
+            parsed.description = temp_all_skill_descriptions_by_id[parsed.unique_id]
+            if parsed.unique_id in result_skills_by_id:
+                print('WARNING: Fixup no longer required but still specified for skill ' + parsed.unique_id + ' (' + parsed.name + ')')
+            else:
+                print('Fixup applied: skill ' + parsed.unique_id + ' has name ' + parsed.name)
+                num_skill_name_fixups_applied += 1
+                result_skills_by_id[parsed.unique_id] = parsed
+
+        print('Discovered ' + str(len(result_skills_by_id)) + ' skills with ' + str(num_skill_description_fixups_applied)
+            + ' description fixups and ' + str(num_skill_name_fixups_applied) + ' name fixes applied')
 
         # Build up the list of jobs.
+        num_job_name_fixups_applied = 0
         result_jobs_by_id: Dict[str, WotvJob] = {}
         for json_entry in json_job_names['infos']:
             temp_job = WotvJob()
             temp_job.unique_id = json_entry['key']
             temp_job.name = json_entry['value']
             result_jobs_by_id[temp_job.unique_id] = temp_job
-        print('Discovered ' + str(len(result_jobs_by_id)) + ' jobs.')
+        for json_entry in json_fixups['job_name_fixups']:
+            temp_job = WotvJob()
+            temp_job.unique_id = json_entry['key']
+            temp_job.name = json_entry['value']
+            if temp_job.unique_id in result_jobs_by_id:
+                print('WARNING: Fixup no longer required but still specified for job ' + temp_job.unique_id + ' (' + temp_job.name + ')')
+            else:
+                print('Fixup applied: job ' + temp_job.unique_id + ' has name ' + temp_job.name)
+                num_job_name_fixups_applied += 1
+                result_jobs_by_id[temp_job.unique_id] = temp_job
+        print('Discovered ' + str(len(result_jobs_by_id)) + ' jobs with '
+            + str(num_job_name_fixups_applied) + ' job name fixups.')
 
         # Fetch all the units in the game, so that we know the jobs to use in the ability board later.
         # Start by inferring all units from the list of names.
+        num_unit_name_fixups_applied = 0
         result_all_units_by_id: Dict[str, WotvUnit] = {}
         for json_entry in json_unit_names['infos']:
             temp_unit = WotvUnit()
             temp_unit.unique_id = json_entry['key']
             temp_unit.name = json_entry['value']
             result_all_units_by_id[temp_unit.unique_id] = temp_unit
-        print('Discovered ' + str(len(result_all_units_by_id)) + ' units (includes enemies, espers, traps, etc).')
+        for json_entry in json_fixups['unit_name_fixups']:
+            temp_unit = WotvUnit()
+            temp_unit.unique_id = json_entry['key']
+            temp_unit.name = json_entry['value']
+            if temp_unit.unique_id in result_all_units_by_id:
+                print('WARNING: Fixup no longer required but still specified for unit ' + temp_unit.unique_id + ' (' + temp_unit.name + ')')
+            else:
+                print('Fixup applied: unit ' + temp_unit.unique_id + ' has name ' + temp_unit.name)
+                num_unit_name_fixups_applied += 1
+                result_all_units_by_id[temp_unit.unique_id] = temp_unit
+        print('Discovered ' + str(len(result_all_units_by_id)) + ' units (includes enemies, espers, traps, etc) with '
+            + str(num_unit_name_fixups_applied) + ' unit name fixups.')
 
         # Fill in all remaining unit details except the ability board, because it needs the job order
         # to identify which job unlocks which skill (the ability board jobs list their unlock criteria
         # as a 1-based integer offset into the job list, along with the job's level).
         for json_entry in  json_unit_data['items']:
+            if json_entry['iname'] not in result_all_units_by_id:
+                # Edge case with missing localization data. Lazy-create a unit with a placeholder name.
+                temp_unit = WotvUnit()
+                temp_unit.unique_id = json_entry['iname']
+                temp_unit.name = '[Missing name, id=' + json_entry['iname'] + ']'
+                result_all_units_by_id[json_entry['iname']] = temp_unit
             temp_unit = result_all_units_by_id[json_entry['iname']]
             if 'jobsets' in json_entry:
                 for jobset_id in json_entry['jobsets']:
+                    if jobset_id not in result_jobs_by_id:
+                        # Edge case with missing localization data. Lazy-create a job with a placeholder hame.
+                        temp_job = WotvJob()
+                        temp_job.unique_id = jobset_id
+                        temp_job.name = '[Missing job, id=' + jobset_id + ']'
+                        result_jobs_by_id[temp_job.unique_id] = temp_job
                     temp_unit.job_list.append(result_jobs_by_id[jobset_id])
             if 'mstskl' in json_entry:
                 for skill_id in json_entry['mstskl']: # Master abilities
+                    if skill_id not in result_skills_by_id:
+                        # Edge case with missing localization data. Lazy-create a skill with a placeholder name and description
+                        temp_skill = WotvSkill()
+                        temp_skill.unique_id = skill_id
+                        temp_skill.name = 'Master Ability'
+                        temp_skill.description = '[Missing master ability, id=' + skill_id + ']'
+                        result_skills_by_id[temp_skill.unique_id] = temp_skill
                     temp_unit.master_abilities.append(result_skills_by_id[skill_id])
             if 'limit' in json_entry:
+                if json_entry['limit'] not in result_skills_by_id:
+                    # Edge case with missing localization data. Lazy-create a skill with a placeholder name and description
+                    temp_skill = WotvSkill()
+                    temp_skill.unique_id = json_entry['limit']
+                    temp_skill.name = '[Missing limit burst, id=' + json_entry['limit'] + ']'
+                    temp_skill.description = '[Missing limit burst, id=' + json_entry['limit'] + ']'
+                    result_skills_by_id[temp_skill.unique_id] = temp_skill
                 temp_unit.limit_burst_skill = result_skills_by_id[json_entry['limit']]
             if 'elem' in json_entry:
                 for element_id in json_entry['elem']:
@@ -153,14 +235,15 @@ class DataFiles:
                 temp_unit.ability_board = temp_board
                 board_count += 1
                 for panel_entry in json_entry['panels']:
-                    skill_count += 1
-                    temp_board_skill = WotvBoardSkill()
-                    temp_board_skill.skill_id = panel_entry['value']
-                    job_index = panel_entry['get_job'] # 1-based index into the job list for the unit
-                    temp_board_skill.unlocked_by_job = temp_unit.job_list[job_index - 1]
-                    if 'need_level' in panel_entry:
-                        temp_board_skill.unlocked_by_job_level = panel_entry['need_level']
-                    temp_board.all_skills[temp_board_skill.skill_id] = temp_board_skill
+                    if 'value' in panel_entry: # Not every panel has a value as of the FFX arrival, see for example panel 90 for Tidus
+                        skill_count += 1
+                        temp_board_skill = WotvBoardSkill()
+                        temp_board_skill.skill_id = panel_entry['value']
+                        job_index = panel_entry['get_job'] # 1-based index into the job list for the unit
+                        temp_board_skill.unlocked_by_job = temp_unit.job_list[job_index - 1]
+                        if 'need_level' in panel_entry:
+                            temp_board_skill.unlocked_by_job_level = panel_entry['need_level']
+                        temp_board.all_skills[temp_board_skill.skill_id] = temp_board_skill
 
         # Playable units all have ability boards with a skill count greater than 0. Filter accordingly.
         result_playable_units_by_id: Dict[str, WotvUnit] = {
