@@ -6,6 +6,9 @@
 <br> Example *!divine What books room should we run?*
 <br> Example *!foretell How many days till UR Learte?*
 
+`!mats`
+> Prints today's double drop rate room as well as tomorrow's.
+
 `!resonance unit-name/esper-name`
 > Get **your own** resonance for the named unit and esper.
 <br> Example: *!resonance mont/cactuar*
@@ -27,6 +30,9 @@
 <br> To roll 3 6-sided dice: *!roll 3d6*
 <br> To roll 2 9-sided dice: *!roll 2d9*
 <br> To roll 17 19-sided dice: *!roll 17d19*
+
+`!schedule`
+> Prints the weekly rotation of double drop rate rooms, etc.
 
 `!skills-by-name`
 > Deprecated. Use `!unit-search skill-name [search_text]` instead.
