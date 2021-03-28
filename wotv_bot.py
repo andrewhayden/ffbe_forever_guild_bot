@@ -102,9 +102,10 @@ class WotvBot:
         self.whimsy_shop_spawn_reminder_delay_ms: int = 60*60*1000 # 60 minutes
         self.predictions = Predictions('predictions.txt')
         self.predictions.refreshPredictions()
+        self.last_status = None # Last status set
 
     @staticmethod
-    def __getStaticInstance():
+    def getStaticInstance():
         """Returns an unsafe static reference to the "current" bot, if there is one. In reality this is just the most recently-created bot.
 
         Use with extreme caution. This is primarily intended for internal use cases where a static method is required, such as the callback
@@ -592,7 +593,7 @@ class WotvBot:
     @staticmethod
     async def whimsyShopNrgReminderCallback(target_channel_id: str, from_id: str):
         """Handles a reminder callback for a whimsy shop nrg reminder."""
-        discord_client: discord.Client = WotvBot.__getStaticInstance().wotv_bot_config.discord_client
+        discord_client: discord.Client = WotvBot.getStaticInstance().wotv_bot_config.discord_client
         text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
         #discord_client.loop.create_task(text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(from_id)))
         await text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: NRG spent will now start counting towards the next Whimsy Shop.'.format(from_id))
@@ -600,7 +601,7 @@ class WotvBot:
     @staticmethod
     async def whimsyShopSpawnReminderCallback(target_channel_id: str, from_id: str):
         """Handles a reminder callback for a whimsy shop spawn reminder."""
-        discord_client: discord.Client = WotvBot.__getStaticInstance().wotv_bot_config.discord_client
+        discord_client: discord.Client = WotvBot.getStaticInstance().wotv_bot_config.discord_client
         text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
         #discord_client.loop.create_task(text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(from_id)))
         await text_channel.send(content = '<@{0}>: This is your requested whimsy shop reminder: The Whimsy Shop is ready to spawn again.'.format(from_id))
@@ -688,3 +689,19 @@ class WotvBot:
         responseText += 'Tomorrow: ' + WeeklyEventSchedule.getTomorrowsDoubleDropRateEvents() + '\n'
         responseText += 'For the full schedule, use !schedule.'
         return (responseText.strip(), None)
+
+    async def createOrResetPeriodicStatusUpdateCallback(self):
+        """Create or reset the status update callback for the entire bot."""
+        self.wotv_bot_config.reminders.createOrResetPeriodicStatusUpdateCallback(WotvBot.periodicStatusUpdateCallback)
+
+    @staticmethod
+    async def periodicStatusUpdateCallback():
+        """Handles a callback for a periodic status update."""
+        bot: WotvBot = WotvBot.getStaticInstance()
+        discord_client: discord.Client = bot.wotv_bot_config.discord_client
+        new_status = WeeklyEventSchedule.getTodaysDoubleDropRateEvents()
+        if bot.last_status is None or bot.last_status != new_status:
+            print('Updating bot status to: ' + new_status)
+            # Apparently bots cannot use a custom status so gotta stick with a regular one like "Playing" (Game)
+            await discord_client.change_presence(activity=discord.Game(name=new_status))
+            bot.last_status = new_status

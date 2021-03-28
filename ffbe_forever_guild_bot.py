@@ -86,6 +86,7 @@ async def on_ready():
     """Hook automatically called by the discord client when login is complete."""
     print('Bot logged in: {0.user}'.format(discord_client))
     global_config.wotv_bot_config.reminders.start(discord_client.loop)
+    await WotvBot.getStaticInstance().createOrResetPeriodicStatusUpdateCallback()
 
 @discord_client.event
 async def on_message(message):

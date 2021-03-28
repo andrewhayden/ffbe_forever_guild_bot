@@ -24,6 +24,11 @@ class Reminders:
         self.scheduler.shutdown(wait=False)
         del self.scheduler
 
+    def createOrResetPeriodicStatusUpdateCallback(self, callback: callable):
+        """Create or reset the status update callback for the entire bot."""
+        self.scheduler.add_job(callback, trigger='interval', minutes=1, id='periodic-status', name='periodic-status',
+            coalesce=True, max_instances=1, replace_existing=True)
+
     def addWhimsyReminder(self, owner_name: str, owner_id: str, nrg_reminder_callback: callable, nrg_reminder_args: List[str], spawn_reminder_callback: callable,
         spawn_reminder_args: List[str], nrg_time_ms_override: int = None, spawn_time_ms_override: int = None):
         """Add a whimsy shop reminder. Actually a pair of reminders, one for NRG spending and one for whimsy spawning.
