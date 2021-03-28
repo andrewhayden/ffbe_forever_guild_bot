@@ -18,6 +18,7 @@ from predictions import Predictions
 from reminders import Reminders
 from rolling import DiceSpec, Rolling
 from vision_card_ocr_utils import VisionCardOcrUtils
+from weekly_event_schedule import WeeklyEventSchedule
 from wotv_bot import WotvBot, WotvBotConfig
 from worksheet_utils import WorksheetUtils
 from wotv_bot_common import ExposableException
@@ -1430,6 +1431,30 @@ class WotvBotIntegrationTests:
         assert actual in expected, 'expected one of "' + str(expected) + '", got "' + str(actual) + '"'
 
     @staticmethod
+    async def testStandaloneWeeklyEventSchedule():
+        result: str = WeeklyEventSchedule.getDoubleDropRateSchedule()
+        print(result)
+        assert result.find('Alcryst') >= 0
+        assert result.find('Training') >= 0
+        assert result.find('Gil') >= 0
+        assert result.find('Gil') >= 0
+        assert result.find('Mon') >= 0
+        assert result.find('Tue') >= 0
+        assert result.find('Wed') >= 0
+        assert result.find('Thu') >= 0
+        assert result.find('Fri') >= 0
+        assert result.find('Sat') >= 0
+        assert result.find('Sun') >= 0
+        assert result.find('No double drop rates') >= 0
+        result = WeeklyEventSchedule.getDoubleDropRateSchedule('__PRE__', '__POST__')
+        assert result.find('__PRE__') >= 0
+        assert result.find('__POST__') >= 0
+        result = WeeklyEventSchedule.getTodaysDoubleDropRateEvents()
+        assert result
+        result = WeeklyEventSchedule.getTomorrowsDoubleDropRateEvents()
+        assert result
+
+    @staticmethod
     async def testStandalonePredictions():
         """Test simple predictions, without the bot."""
         # First just make sure loading works.
@@ -1547,6 +1572,27 @@ class WotvBotIntegrationTests:
         print(response_text) # For fun!
         assert response_text is not None and (response_text.find('African or a European') > 0 or (response_text.find('Auuuughhhhhh') > 0))
 
+    async def testCommand_Schedule(self):
+        """Test getting the schedule of events."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!schedule'))
+        print(response_text)
+        assert response_text.find('Alcryst') > 0
+        assert response_text.find('Training') > 0
+        assert response_text.find('Gil') > 0
+        assert response_text.find('**') > 0
+        assert response_text.find('>>') > 0
+        assert response_text.find('<<') > 0
+
+    async def testCommand_Mats(self):
+        """Test getting the current double-drop-rate mats."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!mats'))
+        print(response_text)
+        assert response_text.find('Today:') > 0
+        assert response_text.find('Tomorrow:') > 0
+        assert response_text.find('schedule') > 0
+
     @staticmethod
     async def cooldown(time_secs: int=30):
         """Wait for Google Sheets API to cool down (max request rate is 100 requests per 100 seconds), with a nice countdown timer printed."""
@@ -1591,6 +1637,12 @@ class WotvBotIntegrationTests:
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
+        print ('>>> Test: testStandaloneWeeklyEventSchedule')
+        await self.testStandaloneWeeklyEventSchedule()
+        print ('>>> Test: testCommand_Schedule')
+        await self.testCommand_Schedule()
+        print ('>>> Test: testCommand_Mats')
+        await self.testCommand_Mats()
         await self.runDataFileTests()
         await self.runRemindersTests()
         print('>>> Test: testCommand_Help')

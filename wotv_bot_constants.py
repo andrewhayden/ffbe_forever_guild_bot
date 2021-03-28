@@ -55,6 +55,12 @@ class WotvBotConstants:
     # See detailed help for more information.
     RICH_UNIT_SEARCH_PATTERN = re.compile(r'^!unit-search (?P<search_type>[^\s]+)\s*(?P<search_text>.+)?$')
 
+    # Patterns for requesting the weekly drop rate schedule
+    DOUBLE_DROP_RATES_SCHEDULE_PATTERN_1 = re.compile(r'^!schedule$')
+
+    # Pattern for requesting the current double drop rate room
+    DOUBLE_DROP_RATES_SCHEDULE_PATTERN_2 = re.compile(r'^!mats$')
+
     # Pattern to get a reminder when it's time to spawn the Whimsy shop again.
     WHIMSY_REMINDER_PATTERN = re.compile(r'^!whimsy(?P<command> .+)?$')
 

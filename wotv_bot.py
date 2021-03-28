@@ -17,6 +17,7 @@ from reminders import Reminders
 from rolling import DiceSpec, Rolling
 from vision_card_ocr_utils import VisionCardOcrUtils
 from vision_card_manager import VisionCardManager
+from weekly_event_schedule import WeeklyEventSchedule
 from wotv_bot_common import ExposableException
 from wotv_bot_constants import WotvBotConstants
 
@@ -213,6 +214,14 @@ class WotvBot:
         match = WotvBotConstants.PREDICTION_PATTERN_4.match(first_line_lower)
         if match:
             return await self.handlePrediction(context.shallowCopy().withMatch(match))
+
+        match = WotvBotConstants.DOUBLE_DROP_RATES_SCHEDULE_PATTERN_1.match(first_line_lower)
+        if match:
+            return await self.handleSchedule(context.shallowCopy().withMatch(match))
+
+        match = WotvBotConstants.DOUBLE_DROP_RATES_SCHEDULE_PATTERN_2.match(first_line_lower)
+        if match:
+            return await self.handleMats(context.shallowCopy().withMatch(match))
 
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if first_line_lower.startswith('!whoami'):
@@ -663,4 +672,19 @@ class WotvBot:
         query = context.command_match.group('query')
         print('Prediction request from user %s#%s, query %s' % (context.from_name, context.from_discrim, str(query)))
         responseText = '<@{0}>: {1}'.format(context.from_id, self.predictions.predict(query))
+        return (responseText.strip(), None)
+
+    async def handleSchedule(self, context: CommandContextInfo) -> (str, str):
+        """Handle a request for the weekly schedule."""
+        print('Schedule request from user %s#%s' % (context.from_name, context.from_discrim))
+        responseText = '<@{0}>: {1}'.format(context.from_id, WeeklyEventSchedule.getDoubleDropRateSchedule('** >> ', ' << **'))
+        return (responseText.strip(), None)
+
+    async def handleMats(self, context: CommandContextInfo) -> (str, str):
+        """Handle a request for the current double-drop rate room."""
+        print('Mats request from user %s#%s' % (context.from_name, context.from_discrim))
+        responseText = '<@{0}>: '.format(context.from_id)
+        responseText += 'Today: ' + WeeklyEventSchedule.getTodaysDoubleDropRateEvents() + '\n'
+        responseText += 'Tomorrow: ' + WeeklyEventSchedule.getTomorrowsDoubleDropRateEvents() + '\n'
+        responseText += 'For the full schedule, use !schedule.'
         return (responseText.strip(), None)
