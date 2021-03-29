@@ -22,28 +22,28 @@ class WeeklyEventSchedule:
   @staticmethod
   def getTodaysDoubleDropRateEvents() -> str:
     """Return a string describing today's double-drop-rate events."""
-    now = datetime.datetime.now(utc)
-    return WeeklyEventSchedule.double_drop_rates_by_day[now.weekday()]
+    wotv_world_time = datetime.datetime.now(utc) - datetime.timedelta(hours=8)   # World time is always UTC-8, no daylight savings.
+    return WeeklyEventSchedule.double_drop_rates_by_day[wotv_world_time.weekday()]
 
   @staticmethod
   def getTomorrowsDoubleDropRateEvents() -> str:
     """Return a string describing tomorrow's double-drop-rate events."""
-    now = datetime.datetime.now(utc)
-    return WeeklyEventSchedule.double_drop_rates_by_day[(now.weekday() + 1) % 7]
+    wotv_world_time = datetime.datetime.now(utc) - datetime.timedelta(hours=8)   # World time is always UTC-8, no daylight savings.
+    return WeeklyEventSchedule.double_drop_rates_by_day[(wotv_world_time.weekday() + 1) % 7]
 
   @staticmethod
   def getDoubleDropRateSchedule(today_prefix_str: str = None, today_suffix_str: str = None):
     """Return a complete schedule of double drop rates, with the current day bounded by the specified optional prefix and suffix strings.
     The prefix and suffix strings can be used for, e.g., Discord formatting of the returned text.
     """
-    today_ordinal = datetime.datetime.now(utc).weekday()
+    wotv_world_day_ordinal = (datetime.datetime.now(utc) - datetime.timedelta(hours=8)).weekday()
     result = ''
     for x in range(0, 7):
-      if x == today_ordinal and today_prefix_str:
+      if x == wotv_world_day_ordinal and today_prefix_str:
         result += today_prefix_str
       result += WeeklyEventSchedule.short_days_of_the_week[x] + ': '
       result += WeeklyEventSchedule.double_drop_rates_by_day[x]
-      if x == today_ordinal and today_suffix_str:
+      if x == wotv_world_day_ordinal and today_suffix_str:
         result += today_suffix_str
       if x < 6:
         result += '\n'
