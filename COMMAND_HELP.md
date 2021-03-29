@@ -6,6 +6,12 @@
 <br> Example *!divine What books room should we run?*
 <br> Example *!foretell How many days till UR Learte?*
 
+`!daily-reminders <reminders>`
+> Set up daily reminders. This is best done in a private message channel to avoid spamming the room. Currently the only supported daily reminder is about double drop rates (see !mats command, below, for context). The reminder will fire within 10 minutes after daily reset, with some randomness to prevent abuse/spam/throttling. Examples:
+<br> To see if you currently have daily reminders set: *!daily-reminders*
+<br> To set up a daily reminder about double-drop rate rooms: *!daily-reminders mats*
+<br> To stop receiving daily reminders: *!daily-reminders none*
+
 `!mats`
 > Prints today's double drop rate room as well as tomorrow's.
 

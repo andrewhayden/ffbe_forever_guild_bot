@@ -10,6 +10,7 @@ import sys
 import types
 from typing import Dict, List
 
+import apscheduler
 from admin_utils import AdminUtils
 from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils
@@ -1030,7 +1031,7 @@ class WotvBotIntegrationTests:
         # Speed up the reminder times so they come faster.
         wotv_bot.whimsy_shop_nrg_reminder_delay_ms = 100
         wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 200
-        self.cleanupBotReminders()
+        await self.cleanupBotReminders()
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
@@ -1081,7 +1082,7 @@ class WotvBotIntegrationTests:
         wotv_bot = WotvBot(self.wotv_bot_config)
         wotv_bot.whimsy_shop_nrg_reminder_delay_ms = 1000
         wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 2000
-        self.cleanupBotReminders()
+        await self.cleanupBotReminders()
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
         (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
@@ -1106,7 +1107,7 @@ class WotvBotIntegrationTests:
         # 6. Check again when the next reminder is and find no reminder scheduled.
         wotv_bot.whimsy_shop_nrg_reminder_delay_ms = 1000
         wotv_bot.whimsy_shop_spawn_reminder_delay_ms = 2000
-        self.cleanupBotReminders()
+        await self.cleanupBotReminders()
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your reminder has been set.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
@@ -1128,6 +1129,48 @@ class WotvBotIntegrationTests:
         # Check that there's no reminder left after everything is done...
         expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: You do not currently have a whimsy reminder set.'
         (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!whimsy when'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+
+    async def testCommand_DailyReminders(self):
+        """Test creating and managing daily reminders via the bot."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        await self.cleanupBotReminders()
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your daily reminders have been configured:'
+        expected_text += '\n  daily double-drop rate reminder ("mats")'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!daily-reminders mats'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        assert reaction is None
+        # Force reminder to be scheduled now
+        assert wotv_bot.wotv_bot_config.reminders.hasDailyReminder(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
+        wotv_bot.wotv_bot_config.reminders.getDailyReminder(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID).reschedule('date') # Run it now.
+        # Now expect the reminder
+        expected_text = '<@{0}>: This is your requested daily reminder. Cancel daily reminders with "!daily-reminders none" or use "!help".'.format(WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID)
+        expected_text += '\n  Today\'s daily double rate drops are: '
+        assert (await WotvBotIntegrationTests.readFromTestChannel()).startswith(expected_text)
+
+    async def testCommand_DailyReminders_Cancel(self):
+        """Test creating and cancelling daily reminders via the bot."""
+        wotv_bot = WotvBot(self.wotv_bot_config)
+        await self.cleanupBotReminders()
+        # Cancelling when there is nothing should be a no-op
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your daily reminders have been canceled.'
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!daily-reminders none'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Now set up a reminder to be canceled
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your daily reminders have been configured:'
+        expected_text += '\n  daily double-drop rate reminder ("mats")'
+        (response_text, reaction) = await wotv_bot.handleMessage(self.makeMessage(message_text='!daily-reminders mats'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # CAncel it.
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: Your daily reminders have been canceled.'
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!daily-reminders none'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Try to cancel again, should be a no-op.
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!daily-reminders none'))
+        WotvBotIntegrationTests.assertEqual(expected_text, response_text)
+        # Check that there's no reminder left after everything is done...
+        expected_text = '<@' + WotvBotIntegrationTests.TEST_USER_SNOWFLAKE_ID + '>: You do not currently have daily reminders configured. Use !help for more information.'
+        (response_text, _) = await wotv_bot.handleMessage(self.makeMessage(message_text='!daily-reminders'))
         WotvBotIntegrationTests.assertEqual(expected_text, response_text)
 
     async def testCommand_SkillsByName(self):
@@ -1307,14 +1350,17 @@ class WotvBotIntegrationTests:
 
     __STANDALONE_REMINDER_CALLBACKS : Dict[str, asyncio.Semaphore] = {}
 
-    def cleanupBotReminders(self):
+    async def cleanupBotReminders(self):
         """Delete the testing reminders SQL database for bot integration testing and restart the reminders system."""
         # Callbacks trigger semaphore release. Tests can then await the semaphores to continue forward.
         if self.wotv_bot_config.reminders and self.wotv_bot_config.reminders.scheduler:
             self.wotv_bot_config.reminders.stop()
+        await asyncio.sleep(1)
+        self.clearTestChannel()
         self.__BOT_REMINDER_CALLBACKS = {}
         self.__BOT_REMINDER_CALLBACKS['whimsy-nrg'] = asyncio.Semaphore(1)
         self.__BOT_REMINDER_CALLBACKS['whimsy-spawn'] = asyncio.Semaphore(1)
+        self.__BOT_REMINDER_CALLBACKS['daily'] = asyncio.Semaphore(1)
         if os.path.exists(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH):
             os.remove(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH)
         self.wotv_bot_config.reminders = Reminders(WotvBotIntegrationTests.BOT_TEST_REMINDERS_PATH)
@@ -1327,6 +1373,7 @@ class WotvBotIntegrationTests:
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS : Dict[str, asyncio.Semaphore] = {}
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-nrg'] = asyncio.Semaphore(1)
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['whimsy-spawn'] = asyncio.Semaphore(1)
+        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['daily'] = asyncio.Semaphore(1)
         if os.path.exists(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH):
             os.remove(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
 
@@ -1341,6 +1388,42 @@ class WotvBotIntegrationTests:
         """Helper function for test execution."""
         print('callback function for whimsy spawn reminder was triggered with param ' + str(param1))
         WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS[param1].release()
+
+    @staticmethod
+    def standaloneDailyReminderCallback(param1):
+        """Helper function for test execution."""
+        print('callback function for daily reminder was triggered with param ' + str(param1))
+        WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS[param1].release()
+
+    async def testStandaloneReminders_Daily(self):
+        """Test creating and managing daily reminders."""
+        # First a fast test that ensures callbacks are executed as expected and parameters are passed.
+        WotvBotIntegrationTests.cleanupStandaloneReminders()
+        reminders = Reminders(WotvBotIntegrationTests.STANDALONE_TEST_REMINDERS_PATH)
+        reminders.start(asyncio.get_event_loop())
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['daily'].acquire()
+        reminders.addDailyReminder('baz_name', 'baz_id', WotvBotIntegrationTests.standaloneDailyReminderCallback, ['daily'])
+        scheduled_reminder: apscheduler.job.Job = reminders.getDailyReminder('baz_id')
+        assert scheduled_reminder is not None
+        next_run_at: datetime.datetime = scheduled_reminder.next_run_time
+        assert next_run_at is not None
+        next_run_at_time: datetime.time = next_run_at.time()
+        # Must run between 08:00:00 UTC and 08:10:00 UTC
+        assert next_run_at_time.hour == 8
+        assert next_run_at_time.minute <= 10
+        scheduled_reminder.reschedule(trigger='date') # now instead of in 8 hours
+        await WotvBotIntegrationTests.__STANDALONE_REMINDER_CALLBACKS['daily'].acquire()
+
+        # Now create one and cancel it.
+        reminders.addDailyReminder('baz_name', 'baz_id', WotvBotIntegrationTests.standaloneDailyReminderCallback, ['daily'])
+        assert reminders.getDailyReminder('baz_id') is not None
+        assert reminders.hasDailyReminder('baz_id')
+        reminders.cancelDailyReminder('baz_id')
+        assert reminders.getDailyReminder('baz_id') is None
+        assert not reminders.hasDailyReminder('baz_id')
+
+        # Halt the reminders system.
+        reminders.stop()
 
     async def testStandaloneReminders_WhimsyShop(self):
         """Test creating and managing whimsy shop reminders."""
@@ -1628,12 +1711,16 @@ class WotvBotIntegrationTests:
         await self.testStandaloneReminders_WhimsyShop()
         print('>>> Test: testStandaloneReminders_WorksAcrossBotRestart (takes a little while)')
         await self.testStandaloneReminders_WorksAcrossBotRestart()
-        print('>>> Test: testBotReminders_Whimsy')
+        print('>>> Test: testCommand_Whimsy')
         await self.testCommand_Whimsy()
-        print('>>> Test: testBotReminders_Whimsy_When')
+        print('>>> Test: testCommand_Whimsy_When')
         await self.testCommand_Whimsy_When()
-        print('>>> Test: testBotReminders_Whimsy_Cancel')
+        print('>>> Test: testCommand_Whimsy_Cancel')
         await self.testCommand_Whimsy_Cancel()
+        print('>>> Test: testCommand_DailyReminders_Cancel')
+        await self.testCommand_DailyReminders_Cancel()
+        print('>>> Test: testCommand_DailyReminders')
+        await self.testCommand_DailyReminders()
 
     async def runLocalTests(self):
         """Run only tests that do not require any network access. AKA fast tests :)"""
@@ -1643,7 +1730,11 @@ class WotvBotIntegrationTests:
         await self.testCommand_Schedule()
         print ('>>> Test: testCommand_Mats')
         await self.testCommand_Mats()
+        print ('>>> Test: testStandaloneReminders_Daily')
+        await self.testStandaloneReminders_Daily()
+
         await self.runDataFileTests()
+
         await self.runRemindersTests()
         print('>>> Test: testCommand_Help')
         await self.testCommand_Help()

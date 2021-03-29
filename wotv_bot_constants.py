@@ -61,6 +61,9 @@ class WotvBotConstants:
     # Pattern for requesting the current double drop rate room
     DOUBLE_DROP_RATES_SCHEDULE_PATTERN_2 = re.compile(r'^!mats$')
 
+    # Pattern for setting up daily reminders. Supported daily reminders are specified in the list.
+    DAILY_REMINDERS = re.compile(r'^!daily-reminders(?P<reminder_list> .+)?$')
+
     # Pattern to get a reminder when it's time to spawn the Whimsy shop again.
     WHIMSY_REMINDER_PATTERN = re.compile(r'^!whimsy(?P<command> .+)?$')
 

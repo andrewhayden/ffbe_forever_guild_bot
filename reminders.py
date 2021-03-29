@@ -15,7 +15,7 @@ class Reminders:
 
     def start(self, event_loop):
         """Start the reminder service."""
-        self.scheduler = AsyncIOScheduler(event_loop=event_loop)
+        self.scheduler = AsyncIOScheduler(event_loop=event_loop, timezone='UTC')
         self.scheduler.add_jobstore(SQLAlchemyJobStore(url='sqlite:///' + self.reminders_database_path))
         self.scheduler.start()
 
@@ -28,6 +28,39 @@ class Reminders:
         """Create or reset the status update callback for the entire bot."""
         self.scheduler.add_job(callback, trigger='interval', minutes=1, id='periodic-status', name='periodic-status',
             coalesce=True, max_instances=1, replace_existing=True)
+
+    def addDailyReminder(self, owner_name: str, owner_id: str, callback: callable, callback_args: List[str]):
+        """Add a daily reminder that is fired within a short time window after daily reset based on WotV world time (midnight at UTC -8).
+
+        args:
+        owner_name                  name of the owner, used in the description of the task.
+        ower_id                     unique ID of the owner, used to construct IDs for the reminders.
+        callback                    the callback function (must be a callable) to be invoked for the reminder.
+        callback_args               positional arguments to be passed to the callback.
+
+        The reminder will have the name "<owner_name>#daily", i.e. if the owner_name is "bob" then the ID of the reminder is "bob#daily"
+        """
+        job_id = owner_id + '#daily'
+        job_desc = '#daily reminder for ' + owner_name + ' (id=' + owner_id + ')'
+        self.scheduler.add_job(callback, id=job_id, name=job_desc, coalesce=True, max_instances=1, replace_existing=True, args=callback_args,
+            trigger='cron', # Cron scheduler to get easy daily scheduling
+            hour=8,    # World time is at UTC-8 so execute at midnight World Time
+            minute=5,  # ... but actually spread it out a bit over 5 minutes by anchoring at 5 minutes past the hour and...
+            jitter=300) # Jittering the time by as much as 300 seconds (5 minutes) in any direciton.
+
+    def getDailyReminder(self, owner_id: str) -> apscheduler.job.Job:
+        """Return the specified ownwer's daily reminder job."""
+        return self.scheduler.get_job(owner_id + '#daily')
+
+    def hasDailyReminder(self, owner_id: str) -> bool:
+        """Return true if the specified user has a daily reminder configured."""
+        return self.getDailyReminder(owner_id) is not None
+
+    def cancelDailyReminder(self, owner_id: str):
+        """Cancel any daily reminder configured for the specified owner."""
+        job: apscheduler.job.Job = self.scheduler.get_job(owner_id + '#daily')
+        if job:
+            job.remove()
 
     def addWhimsyReminder(self, owner_name: str, owner_id: str, nrg_reminder_callback: callable, nrg_reminder_args: List[str], spawn_reminder_callback: callable,
         spawn_reminder_args: List[str], nrg_time_ms_override: int = None, spawn_time_ms_override: int = None):
@@ -50,13 +83,13 @@ class Reminders:
         The spawn reminder will have the name "<owner_name>#whimsy-spawn", i.e. if the owner_name is "bob" then the ID of the reminder is "bob#whimsy-spawn"
         """
         nrg_job_id = owner_id + '#whimsy-nrg'
-        nrg_job_desc = '#whimsy-nrg reminder for ' + owner_name + ' (id=' + owner_name + ')'
+        nrg_job_desc = '#whimsy-nrg reminder for ' + owner_name + ' (id=' + owner_id + ')'
         now = datetime.datetime.now(tz=utc)
         nrg_execute_at = now + datetime.timedelta(minutes=30)
         if nrg_time_ms_override:
             nrg_execute_at = now + datetime.timedelta(milliseconds=nrg_time_ms_override)
         spawn_job_id = owner_id + '#whimsy-spawn'
-        spawn_job_desc = '#whimsy-spawn reminder for ' + owner_name + ' (id=' + owner_name + ')'
+        spawn_job_desc = '#whimsy-spawn reminder for ' + owner_name + ' (id=' + owner_id + ')'
         spawn_execute_at = now + datetime.timedelta(hours=1)
         if spawn_time_ms_override:
             spawn_execute_at = now + datetime.timedelta(milliseconds=spawn_time_ms_override)

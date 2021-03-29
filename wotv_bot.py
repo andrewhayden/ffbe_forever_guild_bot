@@ -224,6 +224,10 @@ class WotvBot:
         if match:
             return await self.handleMats(context.shallowCopy().withMatch(match))
 
+        match = WotvBotConstants.DAILY_REMINDERS.match(first_line_lower)
+        if match:
+            return await self.handleDailyReminders(context.shallowCopy().withMatch(match))
+
         # Hidden utility command to look up the snowflake ID of your own user. This isn't secret or insecure, but it's also not common, so it isn't listed.
         if first_line_lower.startswith('!whoami'):
             return self.handleWhoAmI(context)
@@ -617,7 +621,7 @@ class WotvBot:
         responseText = '<@{0}>: Unknown/unsupported !whimsy command. Use !help for for more information.'.format(context.from_id)
         # Default behavior - be smart. If the user has got a reminder set, don't overwrite it unless they pass set-reminder as the command.
         # If they do not have a reminder set, go ahead and set it now.
-        append_overwrite_reminder_message = False # Whether or not to add some rem
+        append_overwrite_reminder_message = False # Whether or not to add some reminder text to the message
         if command == '<none>':
             # Check if an existing reminder is set. If so prompt to overwrite...
             if reminders.hasPendingWhimsyNrgReminder(owner_id) or reminders.hasPendingWhimsySpawnReminder(owner_id):
@@ -705,3 +709,45 @@ class WotvBot:
             # Apparently bots cannot use a custom status so gotta stick with a regular one like "Playing" (Game)
             await discord_client.change_presence(activity=discord.Game(name=new_status))
             bot.last_status = new_status
+
+    @staticmethod
+    async def dailyReminderCallback(target_channel_id: str, from_id: str, requested_reminders: List[str]):
+        """Handles a reminder callback for daily reminders."""
+        discord_client: discord.Client = WotvBot.getStaticInstance().wotv_bot_config.discord_client
+        text_channel: discord.TextChannel = discord_client.get_channel(target_channel_id)
+        reminder_text =  '<@{0}>: This is your requested daily reminder. Cancel daily reminders with "!daily-reminders none" or use "!help".'.format(from_id)
+        if 'mats' in requested_reminders:
+            reminder_text += '\n  Today\'s daily double rate drops are: ' + WeeklyEventSchedule.getTodaysDoubleDropRateEvents()
+        await text_channel.send(content = reminder_text)
+
+    async def handleDailyReminders(self, context: CommandContextInfo) -> (str, str):
+        """Handle !daily-reminders command for various daily reminders, such as double-drop-rates"""
+        reminders = self.wotv_bot_config.reminders # Shorthand
+        owner_id = str(context.from_id) # Shorthand
+        reminder_list_str = '<default>'
+        if context.command_match.group('reminder_list'):
+            reminder_list_str = context.command_match.group('reminder_list').strip()
+        print('Daily reminders request from user %s#%s, reminder list %s' % (context.from_name, context.from_discrim, reminder_list_str))
+        responseText = '<@{0}>: Unknown/unsupported !daily-reminders command. Use !help for for more information.'.format(context.from_id)
+        requested_reminders: List[str] = reminder_list_str.split(',')
+        configured_reminders_message = '<@{0}>: Your daily reminders have been configured:'.format(context.from_id)
+
+        # Default behavior - be smart. If the user has got a reminder set, don't overwrite it unless they pass "none" as the list.
+        if reminder_list_str == '<default>':
+            if reminders.hasDailyReminder(owner_id):
+                responseText = '<@{0}>: You have daily reminders configured. To clear them, use "!daily-reminders none".'.format(context.from_id)
+            else:
+                responseText = '<@{0}>: You do not currently have daily reminders configured. Use !help for more information.'.format(context.from_id)
+        elif reminder_list_str == 'none':
+            reminders.cancelDailyReminder(owner_id)
+            responseText = '<@{0}>: Your daily reminders have been canceled.'.format(context.from_id)
+        else:
+            added_reminders = []
+            if 'mats' in requested_reminders: 
+                configured_reminders_message += '\n  daily double-drop rate reminder ("mats")'
+                added_reminders.append('mats')
+            callback: callable = WotvBot.dailyReminderCallback
+            callback_params = [context.original_message.channel.id, owner_id, added_reminders]
+            reminders.addDailyReminder(context.from_name, owner_id, callback, callback_params)
+            responseText = configured_reminders_message
+        return (responseText, None)
