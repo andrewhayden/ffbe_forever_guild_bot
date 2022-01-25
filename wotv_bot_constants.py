@@ -33,6 +33,10 @@ class WotvBotConstants:
     PREDICTION_PATTERN_3 = re.compile(r'^!divine ?(?P<query>.+)?$')
     PREDICTION_PATTERN_4 = re.compile(r'^!foretell ?(?P<query>.+)?$')
 
+    # Pattern to save a Leaderboard value to your account, optionally with a proof URL.
+    LEADERBOARD_SET_PATTERN = re.compile(
+        r'^!leader(?:board)?-set (?P<category>[^\s]+)\s+(?P<value>[^\s]+)(\s+(?P<proof_url>.+)?)?$')
+
     # Pattern to save a Vision Card to your account, extracting text from an attached screenshot.
     VISION_CARD_SET_PATTERN = re.compile(r'^!vc-set$')
 

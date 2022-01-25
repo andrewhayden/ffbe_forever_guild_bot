@@ -52,6 +52,7 @@ Now we will create the config file ```bot_config.json``` in the same directory a
   "esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
   "sandbox_esper_resonance_spreadsheet_id": "your_google_spreadsheet_id_here",
   "vision_card_spreadsheet_id": "your_vision_card_google_spreadsheet_id_here",
+  "leaderboard_spreadsheet_id": "your_leaderboard_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_google_spreadsheet_id_here",
   "discord_bot_token": "your_discord_bot_token_here",
   "data_dump_root_path": "path/to/your/wotv-ffbe-dump/"
@@ -80,6 +81,19 @@ At runtime, any attempt to perform a write operation is indirected through the a
 For reads, a similar process is performed but it is non-authoritative, because reads are assumed to be safe for everyone. There is no *private* data in the spreadsheets, and the write-control is only implemented to prevent griefing.
 
 
+## The Leaderboard spreadsheet
+
+This spreadsheet contains a leaderboard. It must have exactly two tabs, one must be named "Summary" and the other must be "Data". The "Data" tab must have a row at the top that has the following structure: first one blank cell, then tuples of ranked categories and proof URLs. Each ranked category must start with the prefix "Ranked: " (with the trailing space after the semicolon, case sensitive). Each player that contributes a leaderboard score will have a new row appended to the table with their name (derived from an ID lookup via the access control spreadsheet as previously described) and then the score and optional proof URLs. For example, a blank table would just be the first row below (delete all other rows! The bot appends a new row for every user to the bottom of the sheet!), and there is some example data shown which the bot might add over time.
+
+| (blank) | Ranked: High Score | Proof URL              | Ranked: Max-Chain | Proof URL                                   |
+|---------|--------------------|------------------------|-------------------|---------------------------------------------|
+| Mont    | 6774               | http://www.example.com | 16                | https://www.youtube.com/watch?v=dQw4w9WgXcQ |
+
+Internally the bot uses the "Ranked: " prefix to locate and match categories of scores for the leaderboard, and when proof URLs are specified they are always simply placed into the column at the right of the score column. Thus the structure.
+
+The "Summary" tab can be set up however you wish in order to highlight your guild member's accomplishments.
+
+
 ## Extra Credit: OCR
 There is experimental support for extracting data from screenshots. The initial support is for vision cards only, and just tries to extract the text from a file (when run standalone)
 or from an image attachment (if uploaded to the channel). To make this work, you need...
@@ -99,6 +113,7 @@ different than the IDs you specify in the ```bot_config.json```. This is super i
   "esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
   "sandbox_esper_resonance_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here",
   "vision_card_spreadsheet_id": "your_vision_card_google_spreadsheet_id_here",
+  "leaderboard_spreadsheet_id": "your_leaderboard_google_spreadsheet_id_here",
   "access_control_spreadsheet_id": "your_integration_testing_google_spreadsheet_id_here"
   "data_dump_root_path": "integ_test_res/mock_data_dump"
 }

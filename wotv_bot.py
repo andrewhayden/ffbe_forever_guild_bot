@@ -1,6 +1,7 @@
 """The runtime heart of the WOTV Bot."""
 from __future__ import annotations
 from dataclasses import dataclass
+from gc import unfreeze
 import io
 from re import Match
 from typing import List
@@ -12,6 +13,7 @@ from data_files import DataFiles
 from data_file_search_utils import DataFileSearchUtils, UnitSkillSearchResult, UnitJobSearchResult, UnitSearchResult
 from data_file_core_classes import WotvUnit
 from esper_resonance_manager import EsperResonanceManager
+from leaderboard_manager import LeaderboardManager
 from predictions import Predictions
 from reminders import Reminders
 from rolling import DiceSpec, Rolling
@@ -35,6 +37,7 @@ class WotvBotConfig:
     esper_resonance_spreadsheet_id: the ID of the spreadsheet where esper resonance is tracked
     sandbox_esper_resonance_spreadsheet_id: the ID of the sandbox alternative to the real esper_resonance_spreadsheet_id
     vision_card_spreadsheet_id: the ID of the spreadsheet where vision cards are tracked
+    leaderboard_spreadsheet_id: the ID of the spreadsheet where leaderboards are tracked
     spreadsheet_app: the Google spreadsheets Resource obtained from calling the spreadsheets() method on a Service Resource.
     discord_client: the Discord client
     data_files: the WotV data dump.
@@ -44,6 +47,7 @@ class WotvBotConfig:
     esper_resonance_spreadsheet_id: str = None
     sandbox_esper_resonance_spreadsheet_id: str = None
     vision_card_spreadsheet_id: str = None
+    leaderboard_spreadsheet_id: str = None
     spreadsheet_app = None
     discord_client: discord.Client = None
     data_files: DataFiles = None
@@ -58,6 +62,7 @@ class CommandContextInfo:
     original_message: discord.Message = None # For unusual use cases
     esper_resonance_manager: EsperResonanceManager = None
     vision_card_manager: VisionCardManager = None
+    leaderboard_manager: LeaderboardManager = None
     command_match: Match = None
 
     def shallowCopy(self) -> CommandContextInfo:
@@ -77,6 +82,11 @@ class CommandContextInfo:
     def withVisionCardManager(self, vision_card_manager: VisionCardManager) -> CommandContextInfo:
         """Assign the specified vision card manager and return a reference to this object."""
         self.vision_card_manager = vision_card_manager
+        return self
+
+    def withLeaderboardManager(self, leaderboard_manager: LeaderboardManager) -> CommandContextInfo:
+        """Assign the specified leaderboard manager and return a reference to this object."""
+        self.leaderboard_manager = leaderboard_manager
         return self
 
     def withMatch(self, the_match: Match) -> CommandContextInfo:
@@ -148,6 +158,10 @@ class WotvBot:
             self.wotv_bot_config.vision_card_spreadsheet_id,
             self.wotv_bot_config.access_control_spreadsheet_id,
             self.wotv_bot_config.spreadsheet_app)
+        leaderboard_manager = LeaderboardManager(
+            self.wotv_bot_config.leaderboard_spreadsheet_id,
+            self.wotv_bot_config.access_control_spreadsheet_id,
+            self.wotv_bot_config.spreadsheet_app)
 
         # To support multi-line commands, we only match the command itself against the first line.
         first_line_lower = message.content.splitlines()[0].lower()
@@ -167,6 +181,10 @@ class WotvBot:
         match = WotvBotConstants.RES_SET_PATTERN.match(first_line_lower)
         if match:
             return self.handleResonanceSet(context.shallowCopy().withMatch(match).withEsperResonanceManager(esper_resonance_manager))
+
+        match = WotvBotConstants.LEADERBOARD_SET_PATTERN.match(first_line_lower)
+        if match:
+            return self.handleLeaderboardSet(context.shallowCopy().withMatch(match).withLeaderboardManager(leaderboard_manager))
 
         if WotvBotConstants.VISION_CARD_SET_PATTERN.match(first_line_lower):
             return await self.handleVisionCardSet(context.shallowCopy().withVisionCardManager(vision_card_manager))
@@ -312,6 +330,21 @@ class WotvBot:
             reaction = '\U0001F3C6'  # CLDR: trophy
         else:
             reaction = '\U00002705'  # CLDR: check mark button
+        return (responseText, reaction)
+
+    def handleLeaderboardSet(self, context: CommandContextInfo) -> (str, str):
+        """Handle !leaderboard-set command to record score for a category, with an optional proof URL."""
+        category = context.command_match.group('category').strip()
+        value = context.command_match.group('value').strip()
+        proof_url = None
+        if context.command_match.group('proof_url'):
+            original_match = WotvBotConstants.LEADERBOARD_SET_PATTERN.match(context.original_message.content) # Fetch original-case URL if it is present
+            proof_url = original_match.group('proof_url')
+        print('leaderboard set from user %s#%s, for category %s, value %s, proof_url %s' % (
+            context.from_name, context.from_discrim, category, value, proof_url))
+        old_value = context.leaderboard_manager.setCurrentRankedValue(user_id=context.from_id, ranked_column_name=category, value=value, proof_url=proof_url)
+        responseText = '<@{0}>: score for category {1} has been set to {2} (was: {3})'.format(context.from_id, category, value, old_value)
+        reaction = '\U00002705'  # CLDR: check mark button
         return (responseText, reaction)
 
     def handleWhoAmI(self, context: CommandContextInfo) -> (str, str):

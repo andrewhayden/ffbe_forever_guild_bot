@@ -3,9 +3,10 @@ bot_config.json
 integration_test_config.json
 google_credentials.json
 google_token.pickle
-credentials.json:Zone.Identifier
 discord.log
 __pycache__
 get-pip.py
 debug.png
 .reminders.sql
+# For Windows Subsystem for Linux systems
+*:Zone.Identifier

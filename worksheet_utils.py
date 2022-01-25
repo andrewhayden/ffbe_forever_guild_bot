@@ -489,6 +489,45 @@ class WorksheetUtils:
         return updateCellsRequest
 
     @staticmethod
+    def generateRequestToSetCellIntValue(sheetId, row_1_based: int, column_A1: str, int_value: int, url: str = None):
+        """Generate and return a Google Sheets request that will set the specified cell to the specified integer value (with optional hyperlink).
+
+        :param sheetId: the ID of the sheet (tab) within the spreadsheet to generate the request for
+        :param row_1_based: the 1-based row number of the cell to be updated
+        :param column_A1: The A1 notation of the column of the cell to be updated, i.e. a value of 'A' refers to the first column
+        :param int_value: The integer value to set
+        :param url: If set, converts the text to a hyperlink having the specified URL target.
+        """
+        userEnteredValue = None
+        if url:
+            userEnteredValue = {
+                # Format: https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/other#ExtendedValue
+                'formulaValue': '=HYPERLINK("' + url + '", "' + text + '")'
+            }
+        else:
+            userEnteredValue = {
+                'numberValue': int_value
+            }
+        updateCellsRequest = {
+            'updateCells': {
+                'rows': [{
+                    'values': [{
+                        'userEnteredValue': userEnteredValue
+                    }]
+                }],
+                'fields': 'userEnteredValue',
+                'range': {
+                    'sheetId': sheetId,
+                    'startRowIndex': row_1_based - 1,  # inclusive
+                    'endRowIndex': row_1_based,  # exclusive
+                    'startColumnIndex': WorksheetUtils.fromA1(column_A1)-1,  # inclusive
+                    'endColumnIndex': WorksheetUtils.fromA1(column_A1)  # exclusive
+                }
+            }
+        }
+        return updateCellsRequest
+
+    @staticmethod
     def generateRequestToSetRowText(sheetId, row_1_based: int, start_column_A1: str, text_values: []):
         """Generate and return a Google Sheets request that will set the specified row to the specified text values, starting at the specified
         column and proceeding further into the row until all values are exhausted.
