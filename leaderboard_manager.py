@@ -124,7 +124,7 @@ class LeaderboardManager:
             sheetId=self.getDataSheetId(),
             row_1_based=row_index,
             column_A1=proof_column_A1,
-            text='click here',
+            text=proof_url, # FIXME: this isn't needed if we set the hint that it's a URL, but will need another method in WorksheetUtils.
             url=proof_url))
         requestBody = {
             'requests': [allRequests]
