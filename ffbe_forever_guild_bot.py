@@ -68,7 +68,9 @@ def toDiscordMessages(message_text):
     return result
 
 if __name__ == "__main__":
-    discord_client = discord.Client()
+    intents = discord.Intents.default()
+    intents.members = True # Necessary to extract snowflake IDs for !whois
+    discord_client = discord.Client(intents = intents)
     global_config = readConfig(CONFIG_FILE_PATH)
     global_config.wotv_bot_config.discord_client = discord_client
     global_config.wotv_bot_config.reminders = Reminders(REMINDERS_DB_PATH)
