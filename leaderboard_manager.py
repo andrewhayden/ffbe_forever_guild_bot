@@ -118,13 +118,15 @@ class LeaderboardManager:
             column_A1=columnA1,
             int_value=int(value))]
         # Add proof URL column
+        proof_text = '[Link]'
         if proof_url is None:
-            proof_url = '' # to clear the existing value
+            proof_text = 'No proof provided'
+            proof_url = None # to clear the existing value
         allRequests.append(WorksheetUtils.generateRequestToSetCellText(
             sheetId=self.getDataSheetId(),
             row_1_based=row_index,
             column_A1=proof_column_A1,
-            text=proof_url, # FIXME: this isn't needed if we set the hint that it's a URL, but will need another method in WorksheetUtils.
+            text=proof_text,
             url=proof_url))
         requestBody = {
             'requests': [allRequests]
