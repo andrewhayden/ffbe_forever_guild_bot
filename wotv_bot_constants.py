@@ -4,10 +4,15 @@ import re
 class WotvBotConstants:
     """Constants used by the WOTV Bot"""
     HELP = '''
+    To add your high score to the leaderboard, attach a screenshot and use the following command:
+    !leaderboard-set high-score #####
+    (where ##### is your numerical score; e.g. 12345)
+
     Command help is at: <https://github.com/andrewhayden/ffbe_forever_guild_bot/blob/master/COMMAND_HELP.md>
     Admin help is at: <https://github.com/andrewhayden/ffbe_forever_guild_bot/blob/master/ADMIN_COMMAND_HELP.md>
     Your guild's Esper resonance data is at: <https://docs.google.com/spreadsheets/d/{0}>
     Your guild's Vision Card data is at: <https://docs.google.com/spreadsheets/d/{1}>
+    Your guild's Leaderboard is at: <https://docs.google.com/spreadsheets/d/{2}>
     '''
 
     # Pattern for getting your own resonance value

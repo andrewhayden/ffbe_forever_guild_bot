@@ -272,7 +272,7 @@ class WotvBot:
             return (responseText, None)
 
         if first_line_lower.startswith('!help'):
-            responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id, self.wotv_bot_config.vision_card_spreadsheet_id)
+            responseText = WotvBotConstants.HELP.format(self.wotv_bot_config.esper_resonance_spreadsheet_id, self.wotv_bot_config.vision_card_spreadsheet_id, self.wotv_bot_config.leaderboard_spreadsheet_id)
             return (responseText, None)
 
         return ('<@{0}>: Invalid or unknown command. Use !help to see all supported commands and !admin-help to see special admin commands. '\
