@@ -14,10 +14,11 @@
 
 `!leaderboard-set category-name score [proof URL]`
 > BETA FUNCTIONALITY - MAY NOT BE 100% FUNCTIONAL
-> <br>Set your own score for the given category, optionally providing a proof URL (e.g. a link to a screenshot or video proving your score). Can be abbreviated as just "!leader", and you only have to type the first few characters of the category - enough to unambiguously match one specific ranked category. The category name is not case-sensitive. Finally, the score you specify must be a simple integer - no decimal points, commas etc... just digits 0-9. Examples:
+> <br>Set your own score for the given category, optionally providing a proof URL (e.g. a link to a screenshot or video proving your score). Can be abbreviated as just "!leader", and you only have to type the first few characters of the category - enough to unambiguously match one specific ranked category. The category name is not case-sensitive. The score you specify must be a simple integer - no decimal points, commas etc... just digits 0-9. Finally, instead of a proof URL you can just attach a screenshot/movie/etc to the message, and the URL of the attachment will be stored as the proof URL; if you specify a proof URL explicitly, it will override any attachment. Examples:
 <br> Set your score for "Max-Chain" to 16 hits, without proof: *!leaderboard-set Max-Chain 16*
 <br> If there's no other category that starts with "max", you can also do: *!leaderboard-set max 16"
 <br> And to set your "high score" to 9999 with a link to a video proving your supremacy, succinctly: *!leader-set high 9999 https://www.youtube.com/watch?v=dQw4w9WgXcQ*
+<br> The same as above, but with a screenshot attached, accomplishes the same thing without specifying a URL explicitly: *!leader-set high 9999*
 
 `!mats`
 > Prints today's double drop rate room as well as tomorrow's.

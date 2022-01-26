@@ -334,16 +334,18 @@ class WotvBot:
 
     def handleLeaderboardSet(self, context: CommandContextInfo) -> (str, str):
         """Handle !leaderboard-set command to record score for a category, with an optional proof URL."""
-        category = context.command_match.group('category').strip()
+        category_fuzzy = context.command_match.group('category').strip()
         value = context.command_match.group('value').strip()
         proof_url = None
         if context.command_match.group('proof_url'):
             original_match = WotvBotConstants.LEADERBOARD_SET_PATTERN.match(context.original_message.content) # Fetch original-case URL if it is present
             proof_url = original_match.group('proof_url')
+        elif context.original_message.attachments and len(context.original_message.attachments) == 1:
+            proof_url = context.original_message.attachments[0].url
         print('leaderboard set from user %s#%s, for category %s, value %s, proof_url %s' % (
-            context.from_name, context.from_discrim, category, value, proof_url))
-        old_value = context.leaderboard_manager.setCurrentRankedValue(user_id=context.from_id, ranked_column_name=category, value=value, proof_url=proof_url)
-        responseText = '<@{0}>: score for category {1} has been set to {2} (was: {3})'.format(context.from_id, category, value, old_value)
+            context.from_name, context.from_discrim, category_fuzzy, value, proof_url))
+        old_value, category_name = context.leaderboard_manager.setCurrentRankedValue(user_id=context.from_id, ranked_column_name=category_fuzzy, value=value, proof_url=proof_url)
+        responseText = '<@{0}>: score for category {1} has been set to {2} (was: {3})'.format(context.from_id, category_name, value, old_value)
         reaction = '\U00002705'  # CLDR: check mark button
         return (responseText, reaction)
 

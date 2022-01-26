@@ -1,4 +1,5 @@
 """Managers leaderboards."""
+from sqlalchemy import column
 from wotv_bot_common import ExposableException
 from admin_utils import AdminUtils
 from worksheet_utils import WorksheetUtils, AmbiguousSearchException, NoResultsException
@@ -11,6 +12,7 @@ class LeaderboardManager:
     USER_NAME_COLUMN_A1 = 'A'
     # TODO: Make these non-static once the manager is persisted across requests.
     ranked_column_cache = {}
+    category_name_cache = {}
     user_row_cache = {}
     data_sheet_id = None # the sheet ID (not SPREADsheet ID) of the sheet (tab) within the leaderboard spreadsheet
 
@@ -23,14 +25,16 @@ class LeaderboardManager:
         self.spreadsheet_app = spreadsheet_app
 
     def findRankedColumn(self, ranked_column_name: str):
-        """Performs a fuzzy lookup for a ranked column, returning the column (in A1 notation)."""
+        """Performs a fuzzy lookup for a ranked column, returning the column (in A1 notation) and the category name (extracted from the column text)."""
         if ranked_column_name in LeaderboardManager.ranked_column_cache:
-            return LeaderboardManager.ranked_column_cache[ranked_column_name]
+            columnA1 = LeaderboardManager.ranked_column_cache[ranked_column_name]
+            return columnA1, LeaderboardManager.category_name_cache[columnA1]
         try:
-            columnA1, _ = WorksheetUtils.fuzzyFindColumn(self.spreadsheet_app, self.leaderboard_spreadsheet_id, LeaderboardManager.DATA_TAB_NAME, LeaderboardManager.RANKED_PREFIX + ranked_column_name, '1')
+            columnA1, column_name = WorksheetUtils.fuzzyFindColumn(self.spreadsheet_app, self.leaderboard_spreadsheet_id, LeaderboardManager.DATA_TAB_NAME, LeaderboardManager.RANKED_PREFIX + ranked_column_name, '1')
             LeaderboardManager.ranked_column_cache[ranked_column_name] = columnA1
+            LeaderboardManager.category_name_cache[columnA1] = self.extractCategoryNameFromColumnText(column_name)
             print('cached ranked column name: ' + ranked_column_name + ' is at column ' + columnA1)
-            return columnA1
+            return columnA1, LeaderboardManager.category_name_cache[columnA1]
         except AmbiguousSearchException:
             raise ExposableException('Be more specific, more than one category matched: ' + ranked_column_name)
 
@@ -68,16 +72,16 @@ class LeaderboardManager:
         return self.findUserRow(user_id)
 
     def readCurrentRankedValue(self, user_id: str, ranked_column_name: str):
-        """Find the current value of the ranked column for the specified user, or none if there is not yet a value for that category and user combination"""
-        columnA1 = self.findRankedColumn(ranked_column_name)
+        """Find the current value of the ranked column for the specified user, or none if there is not yet a value for that category and user combination, and the name of the category extracted from the column match"""
+        columnA1, category_name = self.findRankedColumn(ranked_column_name)
         row_index = self.findUserRow(user_id)
         # We have the location. Get the value!
         range_name = WorksheetUtils.safeWorksheetName(LeaderboardManager.DATA_TAB_NAME) + '!' + columnA1  + str(row_index) + ':' + columnA1 + str(row_index)
         result = self.spreadsheet_app.values().get(spreadsheetId=self.leaderboard_spreadsheet_id, range=range_name).execute()
         final_rows = result.get('values', [])
         if not final_rows:
-            return None
-        return final_rows[0][0]
+            return None, category_name
+        return final_rows[0][0], category_name
 
     def getDataSheetId(self):
         if LeaderboardManager.data_sheet_id is not None:
@@ -92,16 +96,22 @@ class LeaderboardManager:
         if LeaderboardManager.data_sheet_id is None:
             raise ExposableException('Internal error: sheet not found for leaderboard data')
 
+    def extractCategoryNameFromColumnText(self, column_text: str):
+        """Given a column header for a ranked category, extract the category name."""
+        if column_text.startswith(LeaderboardManager.RANKED_PREFIX):
+            return column_text[len(LeaderboardManager.RANKED_PREFIX):]
+        raise ExposableException('Bad category name string')
+
     def setCurrentRankedValue(self, user_id: str, ranked_column_name: str, value: str, proof_url: str):
-        """Set the current value of the ranked column for the specified user. Returns the previous value, if any."""
+        """Set the current value of the ranked column for the specified user. Returns the previous value, if any, and the name of the category that was matched."""
         if value is None:
             raise ExposableException('Must specify a value.')
         if not value.isnumeric():
             raise ExposableException('The value of the ranked value must be a number and consist only of digits, without any characters such as commas or decimals')
-        columnA1 = self.findRankedColumn(ranked_column_name)
+        columnA1, category_name = self.findRankedColumn(ranked_column_name)
         proof_column_A1 = WorksheetUtils.toA1(WorksheetUtils.fromA1(columnA1) + 1)
         row_index = self.findOrAddUserRow(user_id)
-        current_value = self.readCurrentRankedValue(user_id, ranked_column_name)
+        current_value, _ = self.readCurrentRankedValue(user_id, ranked_column_name)
         allRequests = [WorksheetUtils.generateRequestToSetCellIntValue(
             sheetId=self.getDataSheetId(),
             row_1_based=row_index,
@@ -114,11 +124,11 @@ class LeaderboardManager:
             sheetId=self.getDataSheetId(),
             row_1_based=row_index,
             column_A1=proof_column_A1,
-            text=proof_url,
+            text='click here',
             url=proof_url))
         requestBody = {
             'requests': [allRequests]
         }
         # Execute the whole thing as a batch, atomically, so that there is no possibility of partial update.
         self.spreadsheet_app.batchUpdate(spreadsheetId=self.leaderboard_spreadsheet_id, body=requestBody).execute()
-        return current_value
+        return current_value, category_name
